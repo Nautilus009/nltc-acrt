@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ACRT>
+  <Thresholds errors="0" warnings="50" infos="100"/>
+
+  <Rules>
+    <Rule number="5.28" severity="E" run="Y">
+      <Description>Do not use STOP RUN</Description>
+      <Code>(?:^|[^A-Z0-9-])STOP\s+RUN(?:[^A-Z0-9-]|$)</Code>
+    </Rule>
+  </Rules>
+</ACRT>
