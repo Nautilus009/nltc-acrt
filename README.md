@@ -1,4 +1,4 @@
-# nltc-acrt (ACRT / “Ah'Krat”) – COBOL Audit POC for COBOL-IT Listing Diff (Python)
+# nltc-acrt (ACRT) – COBOL Audit POC for COBOL-IT Listing Diff (Python)
 
 `nltc-acrt` is a lightweight COBOL auditing tool inspired by the legacy ACRT (pronounced **Ah'Krat**).
 
