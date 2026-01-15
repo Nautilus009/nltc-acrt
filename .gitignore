@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+
+# Generated ACRT status outputs
+*_acrt
+.acrt.lock.*
+
+# Editor/OS
+.vscode/
+.DS_Store
+
+# Logs/temp
+*.log
+tmp/
