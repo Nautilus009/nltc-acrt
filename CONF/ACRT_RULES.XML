@@ -3,9 +3,39 @@
   <Thresholds errors="0" warnings="50" infos="100"/>
 
   <Rules>
-    <Rule number="5.28" severity="E" run="Y">
+
+    <!-- REGEX example: check everywhere; diff used for reporting new violations -->
+    <Rule number="5.28" severity="E" run="Y"
+          type="REGEX"
+          on_master="N" on_local="N" on_diff="Y">
       <Description>Do not use STOP RUN</Description>
       <Code>(?:^|[^A-Z0-9-])STOP\s+RUN(?:[^A-Z0-9-]|$)</Code>
     </Rule>
+
+    <!-- Count-based WARNING: evaluate on LOCAL listing only -->
+    <Rule number="5.32" severity="W" run="Y"
+          type="MAX_SECTIONS" max="50"
+          on_master="Y" on_local="Y" on_diff="N">
+      <Description>Do not use more than 50 SECTIONs in one program.</Description>
+      <Code></Code>
+    </Rule>
+
+    <!-- Count-based ERROR: mandatory sections must exist (LOCAL only) -->
+    <Rule number="2.22" severity="E" run="Y"
+          type="REQUIRED_SECTIONS" required="A-MAIN,B-INIT,Z-FINISH"
+          on_master="Y" on_local="Y" on_diff="N">
+      <Description>The following sections are mandatory: A-MAIN, B-INIT, Z-FINISH</Description>
+      <Code></Code>
+    </Rule>
+
+    <!-- Informational: all four divisions must exist (LOCAL only) -->
+    <Rule number="3.19" severity="I" run="Y"
+          type="REQUIRED_DIVISIONS"
+          required="IDENTIFICATION,ENVIRONMENT,DATA,PROCEDURE"
+          on_master="Y" on_local="Y" on_diff="N">
+      <Description>All four DIVISIONs must be declared in every program</Description>
+      <Code></Code>
+    </Rule>
+
   </Rules>
 </ACRT>
