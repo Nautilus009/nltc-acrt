@@ -610,7 +610,7 @@ def normalize_name_for_compare(name: str) -> str:
 
 def find_program_id(cob_lines_with_linenos: List[Tuple[int, str]]) -> Tuple[str, int]:
     """Return (PROGRAM-ID, line_no). If not found, returns ('', 0)."""
-    rx = re.compile(r"\bPROGRAM-ID\s*\.\s*([A-Z0-9][A-Z0-9-]*)", re.IGNORECASE)
+    rx = re.compile(r"\bPROGRAM-ID\s*\.\s*([A-Z0-9][A-Z0-9_-]*)", re.IGNORECASE)
     for lnno, txt in cob_lines_with_linenos:
         t = re.sub(r"\*>.*$", "", txt)
         m = rx.search(t)
