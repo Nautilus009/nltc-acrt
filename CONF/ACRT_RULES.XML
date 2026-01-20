@@ -37,5 +37,21 @@
       <Code></Code>
     </Rule>
 
+    <!-- Count-based ERROR: there must not be any unused SECTIONs (LOCAL only) -->
+    <Rule number="5.1" severity="E" run="Y"
+          type="UNUSED_SECTIONS" exclude="A-MAIN,I-DUMMY"
+          on_master="N" on_local="Y" on_diff="N">
+      <Description>There must not be any unused SECTIONs (every SECTION must be referenced by PERFORM or GO TO)</Description>
+      <Code></Code>
+    </Rule>
+
+    <!-- Error: GO TO is permitted only to the EXIT paragraph of the same SECTION; EXIT paragraph must contain only EXIT (LOCAL only) -->
+    <Rule number="8.3" severity="E" run="Y"
+          type="GOTO_EXIT_ONLY_SAME_SECTION"
+          on_master="N" on_local="Y" on_diff="N">
+      <Description>GO TO is permitted only to the EXIT paragraph of the same SECTION (and the EXIT paragraph must contain only EXIT)</Description>
+      <Code></Code>
+    </Rule>
+
   </Rules>
 </ACRT>
