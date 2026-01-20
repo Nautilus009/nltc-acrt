@@ -53,5 +53,45 @@
       <Code></Code>
     </Rule>
 
+    <!-- Source-level ERROR: PROGRAM-ID must match file name (without extension) (evaluate on LOCAL source only; not listing/diff-based) -->
+    <Rule number="6.26" severity="E" run="Y"
+          type="PROGRAM_ID_MATCH"
+          on_master="N" on_local="Y" on_diff="N">
+      <Description>PROGRAM-ID has to be identical to the file name (without the extension)</Description>
+      <Code></Code>
+    </Rule>
+
+    <!-- Diff-based ERROR (REGEX): do not introduce EXIT SECTION (run on LOCAL-ONLY DIFF (Private - Master)) -->
+    <Rule number="6.23" severity="E" run="Y"
+          type="REGEX"
+          on_master="N" on_local="N" on_diff="Y">
+      <Description>Do not use the EXIT SECTION statement</Description>
+      <Code>(?:^|[^A-Z0-9-])EXIT\s+SECTION(?:[^A-Z0-9-]|$)</Code>
+    </Rule>
+
+    <!-- Source-level ERROR: a paragraph name must be unique in the program (evaluate on LOCAL source only) -->
+    <Rule number="3.22" severity="E" run="Y"
+          type="UNIQUE_PARAGRAPHS"
+          on_master="N" on_local="Y" on_diff="N">
+      <Description>A paragraph name must be unique in the program</Description>
+      <Code></Code>
+    </Rule>
+
+    <!-- Source-level ERROR: paragraph prefix must match the section containing it (evaluate on LOCAL source only) -->
+    <Rule number="3.23" severity="E" run="Y"
+          type="PARAGRAPH_PREFIX_MATCH"
+          on_master="N" on_local="Y" on_diff="N">
+      <Description>A paragraph name must have the same prefix as the section containing it</Description>
+      <Code></Code>
+    </Rule>
+
+    <!-- Source-level ERROR: every EVALUATE must include WHEN OTHER (evaluate on LOCAL source only) -->
+    <Rule number="8.1" severity="E" run="Y"
+          type="EVALUATE_WHEN_OTHER"
+          on_master="N" on_local="Y" on_diff="N">
+      <Description>Use WHEN OTHER for every EVALUATE</Description>
+      <Code></Code>
+    </Rule>
+
   </Rules>
 </ACRT>

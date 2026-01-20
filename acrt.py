@@ -26,10 +26,11 @@ class Rule:
     run: bool      # Y/N
 
     # Rule type and parameters
-    rtype: str = "REGEX"          # REGEX | MAX_SECTIONS | REQUIRED_SECTIONS | REQUIRED_DIVISIONS | UNUSED_SECTIONS | GOTO_FORWARD_SAME_SECTION | GOTO_EXIT_ONLY_SAME_SECTION
-    max_value: int = 0            # used for MAX_SECTIONS
-    required_list: List[str] = None  # used for REQUIRED_* rules
-    exclude_list: List[str] = None   # used for UNUSED_SECTIONS rules
+    rtype: str = "REGEX"  # REGEX | MAX_SECTIONS | REQUIRED_SECTIONS | REQUIRED_DIVISIONS | UNUSED_SECTIONS | GOTO_EXIT_ONLY_SAME_SECTION |
+                          # PROGRAM_ID_MATCH | UNIQUE_PARAGRAPHS | PARAGRAPH_PREFIX_MATCH | EVALUATE_WHEN_OTHER
+    max_value: int = 0
+    required_list: List[str] = None
+    exclude_list: List[str] = None
 
     # Scope control
     on_master: bool = True
@@ -52,6 +53,42 @@ class RuleMatch:
 ACCEPTED_EXTS = (".cob", ".inc", ".pco")
 
 ACRT_VERSION = "0.2.0"
+
+# Heuristic filter: never treat COBOL reserved words / terminators as paragraph labels.
+# This prevents false positives like END-IF., END-EVALUATE., etc.
+COBOL_RESERVED_LABELS = {
+    # Common statement/verb keywords
+    "ACCEPT", "ADD", "ALTER", "CALL", "CANCEL", "CLOSE", "COMMIT", "COMPUTE", "CONTINUE",
+    "DELETE", "DISPLAY", "DIVIDE", "EVALUATE", "EXEC", "EXIT", "GOBACK", "GO", "GOTO",
+    "IF", "INITIALIZE", "INSPECT", "INVOKE", "MERGE", "MOVE", "MULTIPLY", "NEXT", "OPEN",
+    "PERFORM", "READ", "RELEASE", "RETURN", "REWRITE", "ROLLBACK", "SEARCH", "SET", "SORT",
+    "START", "STOP", "STRING", "SUBTRACT", "UNSTRING", "WRITE",
+
+    # Clauses / common tokens that appear at line starts
+    "ELSE", "END", "THEN", "WHEN", "OTHER", "THRU", "THROUGH", "VARYING", "UNTIL",
+    "DEPENDING", "ON", "GIVING", "USING", "FROM", "INTO", "WITH", "BY",
+
+    # Divisions/sections that could appear in column 1
+    "IDENTIFICATION", "ENVIRONMENT", "DATA", "PROCEDURE", "WORKING-STORAGE", "LINKAGE",
+}
+
+# Explicit END-* terminators that often look like labels in free format.
+END_TERMINATORS_RX = re.compile(
+    r"^(END-(IF|EVALUATE|READ|WRITE|REWRITE|PERFORM|CALL|SEARCH|START|STRING|UNSTRING|COMPUTE|"
+    r"ADD|SUBTRACT|MULTIPLY|DIVIDE|DELETE|OPEN|CLOSE|SORT|MERGE))$",
+    re.IGNORECASE,
+)
+
+def is_reserved_paragraph_label(name: str) -> bool:
+    if not name:
+        return False
+    n = name.upper()
+    if n in COBOL_RESERVED_LABELS:
+        return True
+    if END_TERMINATORS_RX.match(n) is not None:
+        return True
+    return False
+
 
 def acrt_tag() -> str:
     return f"ACRT v{ACRT_VERSION}"
@@ -140,7 +177,7 @@ def clean_cobol_source_with_linenos(path: str, encoding: str = "iso-8859-8") -> 
     text = read_text(path, encoding=encoding)
     out: List[Tuple[int, str]] = []
     for i, line in enumerate(text.splitlines(), start=1):
-        line = re.sub(r"\*>.*$", "", line)   # strip inline comment
+        line = re.sub(r"\*>.*$", "", line)  # strip inline comment
         if line.startswith("*"):
             continue
         if line.strip() == "":
@@ -234,7 +271,14 @@ def load_rules_config(xml_path: str) -> Tuple[List[Rule], Dict[str, int]]:
             continue
 
         # Rule types that do not require <Code> or required_list; exclude_list is optional
-        if rtype in ("UNUSED_SECTIONS", "GOTO_FORWARD_SAME_SECTION", "GOTO_EXIT_ONLY_SAME_SECTION"):
+        if rtype in (
+            "UNUSED_SECTIONS",
+            "GOTO_EXIT_ONLY_SAME_SECTION",
+            "PROGRAM_ID_MATCH",
+            "UNIQUE_PARAGRAPHS",
+            "PARAGRAPH_PREFIX_MATCH",
+            "EVALUATE_WHEN_OTHER",
+        ):
             pass
 
         rules.append(
@@ -393,8 +437,10 @@ def build_paragraph_index(cob_lines_with_linenos: List[Tuple[int, str]]) -> Dict
             continue
 
         name = (m.group(1) or "").upper()
-        sec = current_section_at_line(section_decls, lnno)
+        if is_reserved_paragraph_label(name):
+            continue
 
+        sec = current_section_at_line(section_decls, lnno)
         if name not in idx:
             idx[name] = (sec, lnno)
 
@@ -407,7 +453,13 @@ def _is_paragraph_label_line(txt: str) -> bool:
         return False
     if re.search(r"\bDIVISION\b", txt, re.IGNORECASE):
         return False
-    return re.match(r"^\s*[A-Z0-9][A-Z0-9-]*\s*\.(?:\s+.*)?$", txt, re.IGNORECASE) is not None
+    m = re.match(r"^\s*([A-Z0-9][A-Z0-9-]*)\s*\.(?:\s+.*)?$", txt, re.IGNORECASE)
+    if not m:
+        return False
+    name = (m.group(1) or "").upper()
+    if is_reserved_paragraph_label(name):
+        return False
+    return True
 
 
 def get_paragraph_body_lines(cob_lines_with_linenos: List[Tuple[int, str]], paragraph_name: str) -> Tuple[int, List[str]]:
@@ -478,9 +530,6 @@ def paragraph_is_exit_only(cob_lines_with_linenos: List[Tuple[int, str]], paragr
 
 def find_goto_exit_only_violations(cob_lines_with_linenos: List[Tuple[int, str]]) -> List[Tuple[int, str, str]]:
     """
-    Return list of violations as tuples:
-      (line_no, target_name, reason)
-
     Tightened rule:
       - GO TO is permitted only to the EXIT paragraph of the same SECTION.
       - The EXIT paragraph itself must contain ONLY an EXIT statement.
@@ -507,7 +556,6 @@ def find_goto_exit_only_violations(cob_lines_with_linenos: List[Tuple[int, str]]
         t = re.sub(r"\*>.*$", "", txt)
 
         if dep_rx.search(t):
-            # Separate rule (GO TO DEPENDING ON). Skip here.
             continue
 
         m = goto_rx.search(t)
@@ -525,7 +573,6 @@ def find_goto_exit_only_violations(cob_lines_with_linenos: List[Tuple[int, str]]
         pref = section_prefix(cur_sec)
         allowed = {f"{pref}-EX", f"{pref}-EXIT"}
 
-        # If paragraph doesn't exist, compiler will complain; don't double-report here.
         if target not in par_idx:
             continue
 
@@ -539,7 +586,6 @@ def find_goto_exit_only_violations(cob_lines_with_linenos: List[Tuple[int, str]]
             viols.append((lnno, target, f"GO TO allowed only to {sorted(allowed)} in SECTION {cur_sec}"))
             continue
 
-        # Extra tightening: EXIT paragraph must contain ONLY EXIT.
         ok_exit, exit_decl_ln, reason = paragraph_is_exit_only(cob_lines_with_linenos, target)
         if not ok_exit:
             viols.append((exit_decl_ln or lnno, target, reason))
@@ -548,11 +594,150 @@ def find_goto_exit_only_violations(cob_lines_with_linenos: List[Tuple[int, str]]
     return viols
 
 
+# ---------------------------
+# Next 5 rule helpers (source-level)
+# ---------------------------
+
+def normalize_name_for_compare(name: str) -> str:
+    """Normalize names for comparison: remove non-alnum; treat '-' and '_' equivalently."""
+    if not name:
+        return ""
+    n = name.upper().replace("_", "-")
+    n = re.sub(r"[^A-Z0-9-]", "", n)
+    n = n.replace("-", "")
+    return n
+
+
+def find_program_id(cob_lines_with_linenos: List[Tuple[int, str]]) -> Tuple[str, int]:
+    """Return (PROGRAM-ID, line_no). If not found, returns ('', 0)."""
+    rx = re.compile(r"\bPROGRAM-ID\s*\.\s*([A-Z0-9][A-Z0-9-]*)", re.IGNORECASE)
+    for lnno, txt in cob_lines_with_linenos:
+        t = re.sub(r"\*>.*$", "", txt)
+        m = rx.search(t)
+        if m:
+            return (m.group(1) or "").upper(), lnno
+    return "", 0
+
+
+def build_paragraph_occurrences(cob_lines_with_linenos: List[Tuple[int, str]]) -> Dict[str, List[int]]:
+    """Return paragraph name -> list of declaration line numbers (all occurrences)."""
+    section_decls = build_section_map(cob_lines_with_linenos)
+    par_rx = re.compile(r"^\s*([A-Z0-9][A-Z0-9-]*)\s*\.(?:\s+.*)?$", re.IGNORECASE)
+
+    occ: Dict[str, List[int]] = {}
+    for lnno, txt in cob_lines_with_linenos:
+        t = re.sub(r"\*>.*$", "", txt).rstrip()
+        if not t:
+            continue
+        if re.search(r"\bSECTION\b", t, re.IGNORECASE) or re.search(r"\bDIVISION\b", t, re.IGNORECASE):
+            continue
+
+        m = par_rx.match(t)
+        if not m:
+            continue
+
+        name = (m.group(1) or "").upper()
+        if is_reserved_paragraph_label(name):
+            continue
+
+        # Reduce false positives: in our conventions paragraph labels include '-'
+        if "-" not in name:
+            continue
+
+        if not current_section_at_line(section_decls, lnno):
+            continue
+
+        occ.setdefault(name, []).append(lnno)
+    return occ
+
+
+def find_duplicate_paragraphs(cob_lines_with_linenos: List[Tuple[int, str]]) -> List[Tuple[int, str]]:
+    """Return list of (line_no, paragraph_name) for duplicate paragraph declarations (excluding first occurrence)."""
+    occ = build_paragraph_occurrences(cob_lines_with_linenos)
+    dups: List[Tuple[int, str]] = []
+    for name, lines in occ.items():
+        if len(lines) > 1:
+            for lnno in lines[1:]:
+                dups.append((lnno, name))
+    return sorted(dups)
+
+
+def find_paragraph_prefix_mismatches(cob_lines_with_linenos: List[Tuple[int, str]]) -> List[Tuple[int, str, str]]:
+    """Return list of (line_no, paragraph_name, section_name) when paragraph prefix != section prefix."""
+    section_decls = build_section_map(cob_lines_with_linenos)
+    par_rx = re.compile(r"^\s*([A-Z0-9][A-Z0-9-]*)\s*\.(?:\s+.*)?$", re.IGNORECASE)
+
+    mism: List[Tuple[int, str, str]] = []
+    for lnno, txt in cob_lines_with_linenos:
+        t = re.sub(r"\*>.*$", "", txt).rstrip()
+        if not t:
+            continue
+        if re.search(r"\bSECTION\b", t, re.IGNORECASE) or re.search(r"\bDIVISION\b", t, re.IGNORECASE):
+            continue
+
+        m = par_rx.match(t)
+        if not m:
+            continue
+
+        pname = (m.group(1) or "").upper()
+        if is_reserved_paragraph_label(pname):
+            continue
+
+        sec = current_section_at_line(section_decls, lnno)
+        if not sec:
+            continue
+
+        if "-" not in pname:
+            continue
+
+        pfx = section_prefix(pname)
+        sfx = section_prefix(sec)
+        if pfx and sfx and pfx != sfx:
+            mism.append((lnno, pname, sec))
+
+    return sorted(mism)
+
+
+def find_evaluate_without_when_other(cob_lines_with_linenos: List[Tuple[int, str]]) -> List[int]:
+    """Return list of EVALUATE start line numbers that do not contain WHEN OTHER before END-EVALUATE."""
+    eval_rx = re.compile(r"\bEVALUATE\b", re.IGNORECASE)
+    when_other_rx = re.compile(r"\bWHEN\s+OTHER\b", re.IGNORECASE)
+    end_eval_rx = re.compile(r"\bEND-EVALUATE\b", re.IGNORECASE)
+
+    stack: List[Dict[str, object]] = []
+    viols: List[int] = []
+
+    for lnno, txt in cob_lines_with_linenos:
+        t = re.sub(r"\*>.*$", "", txt)
+        if not t.strip():
+            continue
+
+        # Start of EVALUATE (not END-EVALUATE)
+        if eval_rx.search(t) and not end_eval_rx.search(t):
+            stack.append({"start_ln": lnno, "has_when_other": False})
+
+        if stack and when_other_rx.search(t):
+            stack[-1]["has_when_other"] = True
+
+        if end_eval_rx.search(t) and stack:
+            frame = stack.pop()
+            if not frame.get("has_when_other", False):
+                viols.append(int(frame.get("start_ln", lnno)))
+
+    # Unclosed evaluates -> still report
+    while stack:
+        frame = stack.pop()
+        if not frame.get("has_when_other", False):
+            viols.append(int(frame.get("start_ln", 0)))
+
+    return sorted(set([v for v in viols if v]))
+
+
+# ---------------------------
+# Divisions/helpers
+# ---------------------------
+
 def find_divisions_in_source(cob_lines_with_linenos: List[Tuple[int, str]]) -> Dict[str, int]:
-    """
-    Return dict: division_name -> first line number.
-    Division names are upper-case words like IDENTIFICATION, ENVIRONMENT, DATA, PROCEDURE.
-    """
     div_rx = re.compile(r"^\s*([A-Z0-9-]+)\s+DIVISION\s*", re.IGNORECASE)
     found: Dict[str, int] = {}
     for lnno, txt in cob_lines_with_linenos:
@@ -584,12 +769,13 @@ def apply_rules(
     lines: List[str],
     rules: List[Rule],
     context: str,
+    expected_prog_base: str,
     cob_lines_with_linenos: List[Tuple[int, str]] = None,
     max_samples_per_rule: int = 5
 ) -> Tuple[Dict[str, int], List[RuleMatch]]:
     """
     Apply rules to the given cleaned lines in a given context (MASTER/LOCAL/DIFF).
-    For REQUIRED_* rules we use the COBOL source index for accuracy and line numbers.
+    For source-level rules we use the COBOL source index for accuracy and line numbers.
     """
     counts = {"E": 0, "W": 0, "I": 0}
     matches: List[RuleMatch] = []
@@ -601,7 +787,79 @@ def apply_rules(
             continue
 
         # --------------------
-        # Special: MAX_SECTIONS
+        # PROGRAM_ID_MATCH (6.26)
+        # --------------------
+        if rule.rtype == "PROGRAM_ID_MATCH":
+            if not cob_lines_with_linenos:
+                continue
+
+            prog_id, prog_ln = find_program_id(cob_lines_with_linenos)
+            expected_norm = normalize_name_for_compare(expected_prog_base)
+            found_norm = normalize_name_for_compare(prog_id)
+
+            if not prog_id:
+                counts[rule.severity] += 1
+                samples = ["PROGRAM-ID not found"]
+                matches.append(RuleMatch(rule=rule, count=1, sample_lines=samples, src_locations=[1]))
+            elif expected_norm != found_norm:
+                counts[rule.severity] += 1
+                samples = [f"PROGRAM-ID={prog_id} (expected {expected_prog_base})"]
+                src_locs = [prog_ln] if prog_ln else [1]
+                matches.append(RuleMatch(rule=rule, count=1, sample_lines=samples, src_locations=src_locs))
+            continue
+
+        # --------------------
+        # UNIQUE_PARAGRAPHS (3.22)
+        # --------------------
+        if rule.rtype == "UNIQUE_PARAGRAPHS":
+            if not cob_lines_with_linenos:
+                continue
+
+            dups = find_duplicate_paragraphs(cob_lines_with_linenos)
+            if dups:
+                counts[rule.severity] += len(dups)
+                samples: List[str] = [f"Duplicate PARAGRAPH(s) count={len(dups)}"]
+                for lnno, name in dups[:max_samples_per_rule]:
+                    samples.append(f"Duplicate PARAGRAPH: {name} at line {lnno}")
+                src_locs = [lnno for lnno, _ in dups]
+                matches.append(RuleMatch(rule=rule, count=len(dups), sample_lines=samples, src_locations=src_locs))
+            continue
+
+        # --------------------
+        # PARAGRAPH_PREFIX_MATCH (3.23)
+        # --------------------
+        if rule.rtype == "PARAGRAPH_PREFIX_MATCH":
+            if not cob_lines_with_linenos:
+                continue
+
+            mism = find_paragraph_prefix_mismatches(cob_lines_with_linenos)
+            if mism:
+                counts[rule.severity] += len(mism)
+                samples: List[str] = [f"PARAGRAPH prefix mismatch count={len(mism)}"]
+                for lnno, pname, sec in mism[:max_samples_per_rule]:
+                    samples.append(f"{pname} (line {lnno}) is in SECTION {sec}")
+                src_locs = [lnno for lnno, _, _ in mism]
+                matches.append(RuleMatch(rule=rule, count=len(mism), sample_lines=samples, src_locations=src_locs))
+            continue
+
+        # --------------------
+        # EVALUATE_WHEN_OTHER (8.1)
+        # --------------------
+        if rule.rtype == "EVALUATE_WHEN_OTHER":
+            if not cob_lines_with_linenos:
+                continue
+
+            viols = find_evaluate_without_when_other(cob_lines_with_linenos)
+            if viols:
+                counts[rule.severity] += len(viols)
+                samples: List[str] = [f"EVALUATE without WHEN OTHER count={len(viols)}"]
+                for lnno in viols[:max_samples_per_rule]:
+                    samples.append(f"EVALUATE at line {lnno} missing WHEN OTHER")
+                matches.append(RuleMatch(rule=rule, count=len(viols), sample_lines=samples, src_locations=viols))
+            continue
+
+        # --------------------
+        # MAX_SECTIONS (5.32)
         # --------------------
         if rule.rtype == "MAX_SECTIONS":
             sec_rx = re.compile(r"^\s*([A-Z0-9][A-Z0-9-]*)\s+SECTION\s*\.", re.IGNORECASE)
@@ -628,7 +886,6 @@ def apply_rules(
                 for n in seen[: min(len(seen), max_samples_per_rule)]:
                     samples.append(f"SECTION: {n}")
 
-                # Best effort line number: (max+1)th unique SECTION declaration in source order
                 src_locs: List[int] = []
                 if cob_lines_with_linenos:
                     decls = get_section_decls_from_source(cob_lines_with_linenos)
@@ -646,11 +903,10 @@ def apply_rules(
             continue
 
         # --------------------
-        # Special: REQUIRED_SECTIONS
+        # REQUIRED_SECTIONS (2.22)
         # --------------------
         if rule.rtype == "REQUIRED_SECTIONS":
             if not cob_lines_with_linenos:
-                # no source index => cannot evaluate accurately
                 continue
 
             decls = get_section_decls_from_source(cob_lines_with_linenos)
@@ -660,16 +916,14 @@ def apply_rules(
             missing = sorted([x for x in required if x not in present])
             if missing:
                 counts[rule.severity] += 1
-
                 proc_ln = find_procedure_division_line(cob_lines_with_linenos)
                 samples = [f"Missing SECTION(s): {', '.join(missing)}"]
-                src_locs = [proc_ln]  # anchor diagnostic at PROCEDURE DIVISION
-
+                src_locs = [proc_ln]
                 matches.append(RuleMatch(rule=rule, count=1, sample_lines=samples, src_locations=src_locs))
             continue
 
         # --------------------
-        # Special: REQUIRED_DIVISIONS
+        # REQUIRED_DIVISIONS (3.19)
         # --------------------
         if rule.rtype == "REQUIRED_DIVISIONS":
             if not cob_lines_with_linenos:
@@ -682,32 +936,25 @@ def apply_rules(
             missing = sorted([x for x in required if x not in present])
             if missing:
                 counts[rule.severity] += 1
-
-                # anchor at first line (or IDENTIFICATION if exists)
                 anchor = divs.get("IDENTIFICATION", 1)
                 samples = [f"Missing DIVISION(s): {', '.join(missing)}"]
                 src_locs = [anchor]
-
                 matches.append(RuleMatch(rule=rule, count=1, sample_lines=samples, src_locations=src_locs))
             continue
 
         # --------------------
-        # Special: UNUSED_SECTIONS
+        # UNUSED_SECTIONS (5.1)
         # --------------------
         if rule.rtype == "UNUSED_SECTIONS":
             if not cob_lines_with_linenos:
                 continue
 
-            # Declared sections in source (PROCEDURE DIVISION). These already exclude WORKING-STORAGE/LINKAGE.
             decls = get_section_decls_from_source(cob_lines_with_linenos)
             declared = [(nm.upper(), lnno) for nm, lnno in decls]
             declared_names = {nm for nm, _ in declared}
 
-            # Exclusions (optional)
             exclude = set((rule.exclude_list or []))
 
-            # Find references via PERFORM / GO TO in source, but only count references to declared section names.
-            # This avoids false positives like PERFORM VARYING / PERFORM UNTIL.
             ref_rx = re.compile(
                 r"\bPERFORM\s+([A-Z0-9][A-Z0-9-]*)\b|\bGO\s+TO\s+([A-Z0-9][A-Z0-9-]*)\b|\bGOTO\s+([A-Z0-9][A-Z0-9-]*)\b",
                 re.IGNORECASE,
@@ -730,7 +977,6 @@ def apply_rules(
                     if target in declared_names:
                         referenced.setdefault(target, []).append(lnno)
 
-            # Determine unused: declared but never referenced (PERFORM/GO TO), excluding any configured names.
             unused: List[Tuple[str, int]] = []
             for nm, decl_ln in declared:
                 if nm in exclude:
@@ -739,34 +985,27 @@ def apply_rules(
                     unused.append((nm, decl_ln))
 
             if unused:
-                # Count each unused section as a hit
                 counts[rule.severity] += len(unused)
-
                 samples: List[str] = [f"Unused SECTION(s) count={len(unused)}"]
                 for nm, decl_ln in unused[:max_samples_per_rule]:
                     samples.append(f"{nm} (declared at line {decl_ln})")
-
-                # Report each unused section declaration line number (so stdout can print one line per section)
                 src_locs = [decl_ln for _, decl_ln in unused]
-
                 matches.append(RuleMatch(rule=rule, count=len(unused), sample_lines=samples, src_locations=src_locs))
             continue
 
         # --------------------
-        # Special: GO TO EXIT only in same SECTION (+ EXIT paragraph must be EXIT-only)
+        # GOTO_EXIT_ONLY_SAME_SECTION (8.3 tightened)
         # --------------------
-        if rule.rtype in ("GOTO_FORWARD_SAME_SECTION", "GOTO_EXIT_ONLY_SAME_SECTION"):
+        if rule.rtype == "GOTO_EXIT_ONLY_SAME_SECTION":
             if not cob_lines_with_linenos:
                 continue
 
             viols = find_goto_exit_only_violations(cob_lines_with_linenos)
             if viols:
                 counts[rule.severity] += len(viols)
-
                 samples: List[str] = [f"GO TO violations count={len(viols)}"]
                 for v_ln, target, reason in viols[:max_samples_per_rule]:
                     samples.append(f"GO TO {target} at line {v_ln}: {reason}")
-
                 src_locs = [v_ln for v_ln, _, _ in viols]
                 matches.append(RuleMatch(rule=rule, count=len(viols), sample_lines=samples, src_locations=src_locs))
             continue
@@ -829,8 +1068,16 @@ def format_rule_matches(title: str, matches: List[RuleMatch], cob_filename: str)
             out.append(f"   Type  : MAX_SECTIONS (max={m.rule.max_value})\n")
         elif m.rule.rtype == "UNUSED_SECTIONS":
             out.append(f"   Type  : UNUSED_SECTIONS (exclude={','.join(m.rule.exclude_list or [])})\n")
-        elif m.rule.rtype in ("GOTO_FORWARD_SAME_SECTION", "GOTO_EXIT_ONLY_SAME_SECTION"):
+        elif m.rule.rtype == "GOTO_EXIT_ONLY_SAME_SECTION":
             out.append("   Type  : GOTO_EXIT_ONLY_SAME_SECTION\n")
+        elif m.rule.rtype == "PROGRAM_ID_MATCH":
+            out.append("   Type  : PROGRAM_ID_MATCH\n")
+        elif m.rule.rtype == "UNIQUE_PARAGRAPHS":
+            out.append("   Type  : UNIQUE_PARAGRAPHS\n")
+        elif m.rule.rtype == "PARAGRAPH_PREFIX_MATCH":
+            out.append("   Type  : PARAGRAPH_PREFIX_MATCH\n")
+        elif m.rule.rtype == "EVALUATE_WHEN_OTHER":
+            out.append("   Type  : EVALUATE_WHEN_OTHER\n")
         else:
             out.append(f"   Type  : {m.rule.rtype} (required={','.join(m.rule.required_list or [])})\n")
 
@@ -903,6 +1150,8 @@ def main() -> None:
     if not any(lower.endswith(ext) for ext in ACCEPTED_EXTS):
         error_exit(f"Input must be one of: {', '.join(ACCEPTED_EXTS)}  (got: {base})")
 
+    expected_prog_base = strip_known_ext(base).upper()
+
     # Status file: <sourcefile>_acrt under $ACRT_HOME
     status_name = base + "_acrt"
     status_path = os.path.join(acrt_home, status_name)
@@ -923,13 +1172,13 @@ def main() -> None:
 
     # Apply rules per context
     master_counts, master_matches = apply_rules(
-        master_clean, rules, context="MASTER", cob_lines_with_linenos=cob_lines_with_linenos
+        master_clean, rules, context="MASTER", expected_prog_base=expected_prog_base, cob_lines_with_linenos=cob_lines_with_linenos
     )
     local_counts, local_matches = apply_rules(
-        private_clean, rules, context="LOCAL", cob_lines_with_linenos=cob_lines_with_linenos
+        private_clean, rules, context="LOCAL", expected_prog_base=expected_prog_base, cob_lines_with_linenos=cob_lines_with_linenos
     )
     diff_counts, diff_matches = apply_rules(
-        diff_lines, rules, context="DIFF", cob_lines_with_linenos=cob_lines_with_linenos
+        diff_lines, rules, context="DIFF", expected_prog_base=expected_prog_base, cob_lines_with_linenos=cob_lines_with_linenos
     )
 
     # Differences (Private - Master) from MASTER/LOCAL-scoped evaluations
@@ -940,7 +1189,6 @@ def main() -> None:
     }
 
     # Add DIFF-only rules into the epilog delta (rules that run only on DIFF)
-    # (i.e., on_diff=Y and on_master=on_local=N)
     diff_only_counts = {"E": 0, "W": 0, "I": 0}
     for m in diff_matches:
         r = m.rule
@@ -975,7 +1223,6 @@ def main() -> None:
     )
     report_lines.append("\n")
 
-    # Keep your original key view: local-only diff matches
     report_lines.append(format_rule_matches(
         "Rule matches on LOCAL-ONLY DIFF (Private - Master):",
         diff_matches,
@@ -983,7 +1230,6 @@ def main() -> None:
     ))
     report_lines.append("\n")
 
-    # Also include local-only and master-only context results (useful for REQUIRED_* rules)
     report_lines.append(format_rule_matches(
         "Rule matches on LOCAL LISTING (Private build):",
         local_matches,
