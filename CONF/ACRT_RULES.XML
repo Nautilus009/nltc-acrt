@@ -4,7 +4,7 @@
 
   <Rules>
 
-    <!-- REGEX example: check everywhere; diff used for reporting new violations -->
+    <!-- REGEX: run on LOCAL-ONLY DIFF (Private - Master) to report newly introduced violations -->
     <Rule number="5.28" severity="E" run="Y"
           type="REGEX"
           on_master="N" on_local="N" on_diff="Y">
@@ -12,7 +12,7 @@
       <Code>(?:^|[^A-Z0-9-])STOP\s+RUN(?:[^A-Z0-9-]|$)</Code>
     </Rule>
 
-    <!-- Count-based WARNING: evaluate on LOCAL listing only -->
+    <!-- Count-based WARNING: evaluate on MASTER + LOCAL listings (program-level metric; not diff-based) -->
     <Rule number="5.32" severity="W" run="Y"
           type="MAX_SECTIONS" max="50"
           on_master="Y" on_local="Y" on_diff="N">
@@ -20,7 +20,7 @@
       <Code></Code>
     </Rule>
 
-    <!-- Count-based ERROR: mandatory sections must exist (LOCAL only) -->
+    <!-- Count-based ERROR: mandatory sections must exist (evaluate on MASTER + LOCAL listings; not diff-based) -->
     <Rule number="2.22" severity="E" run="Y"
           type="REQUIRED_SECTIONS" required="A-MAIN,B-INIT,Z-FINISH"
           on_master="Y" on_local="Y" on_diff="N">
@@ -28,7 +28,7 @@
       <Code></Code>
     </Rule>
 
-    <!-- Informational: all four divisions must exist (LOCAL only) -->
+    <!-- Informational: all four divisions must exist (evaluate on MASTER + LOCAL listings; not diff-based) -->
     <Rule number="3.19" severity="I" run="Y"
           type="REQUIRED_DIVISIONS"
           required="IDENTIFICATION,ENVIRONMENT,DATA,PROCEDURE"
@@ -37,7 +37,7 @@
       <Code></Code>
     </Rule>
 
-    <!-- Count-based ERROR: there must not be any unused SECTIONs (LOCAL only) -->
+    <!-- Source-level ERROR: there must not be any unused SECTIONs (evaluate on LOCAL source only; not listing/diff-based) -->
     <Rule number="5.1" severity="E" run="Y"
           type="UNUSED_SECTIONS" exclude="A-MAIN,I-DUMMY"
           on_master="N" on_local="Y" on_diff="N">
@@ -45,7 +45,7 @@
       <Code></Code>
     </Rule>
 
-    <!-- Error: GO TO is permitted only to the EXIT paragraph of the same SECTION; EXIT paragraph must contain only EXIT (LOCAL only) -->
+    <!-- Source-level ERROR: GO TO allowed only to same-SECTION EXIT paragraph (<PREFIX>-EX or <PREFIX>-EXIT) and EXIT paragraph must be EXIT-only (LOCAL source only) -->
     <Rule number="8.3" severity="E" run="Y"
           type="GOTO_EXIT_ONLY_SAME_SECTION"
           on_master="N" on_local="Y" on_diff="N">
