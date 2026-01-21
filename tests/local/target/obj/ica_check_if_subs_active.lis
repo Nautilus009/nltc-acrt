@@ -7399,7 +7399,6 @@ Z-00.
 
 **>--SCCOPY /CCA/BUILD/BUILDDEV/DEV/classic_ica/inc/ica_term_prog.inc
 
-
     GO TO Z-00
 
     STOP RUN
