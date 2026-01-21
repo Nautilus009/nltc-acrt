@@ -13,3 +13,6 @@ __pycache__/
 # Logs/temp
 *.log
 tmp/
+
+# Test fixtures
+tests/src/.freebidi/
