@@ -101,11 +101,11 @@
       <Code>(?:^|[^A-Z0-9-])EXIT\s+SECTION(?:[^A-Z0-9-]|$)</Code>
     </Rule>
 
-    <!-- Source-level ERROR: a paragraph name must be unique in the program (evaluate on LOCAL source only) -->
+    <!-- Source-level ERROR: SECTION and paragraph names must be unique in the program (evaluate on LOCAL source only) -->
     <Rule number="3.22" severity="E" run="Y"
           type="UNIQUE_PARAGRAPHS"
           on_master="N" on_local="Y" on_diff="N">
-      <Description>A paragraph name must be unique in the program</Description>
+      <Description>SECTION and paragraph names must be unique in the program</Description>
       <Code></Code>
     </Rule>
 

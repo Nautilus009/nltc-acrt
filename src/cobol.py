@@ -615,6 +615,20 @@ def find_duplicate_paragraphs(cob_lines_with_linenos: List[Tuple[int, str]]) -> 
     return sorted(dups)
 
 
+def find_duplicate_sections(cob_lines_with_linenos: List[Tuple[int, str]]) -> List[Tuple[int, str]]:
+    """Return list of (line_no, section_name) for duplicate section declarations (excluding first occurrence)."""
+    occ: Dict[str, List[int]] = {}
+    for name, lnno in get_section_decls_from_source(cob_lines_with_linenos):
+        occ.setdefault(name, []).append(lnno)
+
+    dups: List[Tuple[int, str]] = []
+    for name, lines in occ.items():
+        if len(lines) > 1:
+            for lnno in lines[1:]:
+                dups.append((lnno, name))
+    return sorted(dups)
+
+
 def find_paragraph_prefix_mismatches(cob_lines_with_linenos: List[Tuple[int, str]]) -> List[Tuple[int, str, str]]:
     """Return list of (line_no, paragraph_name, section_name) when paragraph prefix != section prefix."""
     section_decls = build_section_map(cob_lines_with_linenos)

@@ -7,6 +7,7 @@ from cobol import (
     find_divisions_in_source,
     find_duplicate_code_blocks,
     find_duplicate_paragraphs,
+    find_duplicate_sections,
     find_evaluate_without_when_other,
     find_goto_exit_only_violations,
     find_long_numeric_literals,
@@ -116,14 +117,24 @@ def apply_rules(
             if not cob_lines_with_linenos:
                 continue
 
-            dups = find_duplicate_paragraphs(cob_lines_with_linenos)
-            if dups:
-                counts[rule.severity] += len(dups)
-                samples: List[str] = [f"Duplicate PARAGRAPH(s) count={len(dups)}"]
-                for lnno, name in dups[:max_samples_per_rule]:
-                    samples.append(f"Duplicate PARAGRAPH: {name} at line {lnno}")
-                src_locs = [lnno for lnno, _ in dups]
-                matches.append(RuleMatch(rule=rule, count=len(dups), sample_lines=samples, src_locations=_map_src_locs(src_locs)))
+            para_dups = find_duplicate_paragraphs(cob_lines_with_linenos)
+            sec_dups = find_duplicate_sections(cob_lines_with_linenos)
+            total = len(para_dups) + len(sec_dups)
+            if total:
+                counts[rule.severity] += total
+                samples: List[str] = []
+                if sec_dups:
+                    samples.append(f"Duplicate SECTION(s) count={len(sec_dups)}")
+                if para_dups:
+                    samples.append(f"Duplicate PARAGRAPH(s) count={len(para_dups)}")
+                combined = [(lnno, "SECTION", name) for lnno, name in sec_dups] + [
+                    (lnno, "PARAGRAPH", name) for lnno, name in para_dups
+                ]
+                combined.sort(key=lambda item: item[0])
+                for lnno, kind, name in combined[:max_samples_per_rule]:
+                    samples.append(f"Duplicate {kind}: {name} at line {lnno}")
+                src_locs = [lnno for lnno, _ in sec_dups] + [lnno for lnno, _ in para_dups]
+                matches.append(RuleMatch(rule=rule, count=total, sample_lines=samples, src_locations=_map_src_locs(src_locs)))
             continue
 
         # --------------------
