@@ -141,6 +141,37 @@ def _is_paragraph_label_line(txt: str) -> bool:
     return True
 
 
+def get_paragraph_decls(cob_lines_with_linenos: List[Tuple[int, str]]) -> List[Tuple[int, str]]:
+    """Return paragraph declarations as (line_number, paragraph_name)."""
+    par_rx = re.compile(r"^\s*([A-Z0-9][A-Z0-9-]*)\s*\.(?:\s+.*)?$", re.IGNORECASE)
+    decls: List[Tuple[int, str]] = []
+    for lnno, txt in cob_lines_with_linenos:
+        t = re.sub(r"\*>.*$", "", txt).rstrip()
+        if not t:
+            continue
+        if re.search(r"\bSECTION\b", t, re.IGNORECASE) or re.search(r"\bDIVISION\b", t, re.IGNORECASE):
+            continue
+        m = par_rx.match(t)
+        if not m:
+            continue
+        name = (m.group(1) or "").upper()
+        if is_reserved_paragraph_label(name):
+            continue
+        decls.append((lnno, name))
+    return decls
+
+
+def current_paragraph_at_line(paragraph_decls: List[Tuple[int, str]], line_no: int) -> str:
+    """Return the most recent paragraph name at or before line_no."""
+    cur = ""
+    for lnno, name in paragraph_decls:
+        if lnno <= line_no:
+            cur = name
+        else:
+            break
+    return cur
+
+
 def get_paragraph_body_lines(cob_lines_with_linenos: List[Tuple[int, str]], paragraph_name: str) -> Tuple[int, List[str]]:
     """
     Return (paragraph_decl_line, body_lines) where body_lines are cleaned (no comments/blank),
@@ -296,6 +327,249 @@ def find_program_id(cob_lines_with_linenos: List[Tuple[int, str]]) -> Tuple[str,
         if m:
             return (m.group(1) or "").upper(), lnno
     return "", 0
+
+
+def find_missing_end_clauses(cob_lines_with_linenos: List[Tuple[int, str]]) -> List[Tuple[int, str]]:
+    """
+    Heuristic: require END-IF/END-EVALUATE/END-READ/END-PERFORM for inline PERFORM.
+    Returns list of (line_no, construct) for unclosed constructs.
+    """
+    token_rx = re.compile(
+        r"\b(END-IF|END-EVALUATE|END-READ|END-PERFORM|IF|EVALUATE|READ|PERFORM)\b",
+        re.IGNORECASE,
+    )
+    inline_hint_rx = re.compile(r"\b(VARYING|UNTIL|TEST|AFTER|BEFORE|WITH)\b", re.IGNORECASE)
+    perform_target_rx = re.compile(r"\bPERFORM\s+([A-Z0-9][A-Z0-9-]*)\b", re.IGNORECASE)
+
+    stack: List[Tuple[str, int]] = []
+    lines = cob_lines_with_linenos
+
+    def _next_significant_line(start_idx: int) -> str:
+        for _i in range(start_idx + 1, len(lines)):
+            _txt = re.sub(r"\*>.*$", "", lines[_i][1]).strip()
+            if not _txt:
+                continue
+            if _txt.startswith("*"):
+                continue
+            return _txt
+        return ""
+
+    next_target_rx = re.compile(r"^\s*([A-Z0-9][A-Z0-9-]*)\b", re.IGNORECASE)
+
+    def _is_standalone_token(line: str, match: re.Match) -> bool:
+        start, end = match.start(1), match.end(1)
+        prev = line[start - 1] if start > 0 else " "
+        nxt = line[end] if end < len(line) else " "
+        if prev.isalnum() or prev == "-":
+            return False
+        if nxt.isalnum() or nxt == "-":
+            return False
+        return True
+
+    for _idx, (lnno, txt) in enumerate(lines):
+        t = re.sub(r"\*>.*$", "", txt)
+        if not t.strip():
+            continue
+        if re.search(r"\bSECTION\b", t, re.IGNORECASE) or re.search(r"\bDIVISION\b", t, re.IGNORECASE):
+            continue
+        if _is_paragraph_label_line(t):
+            continue
+
+        for m in token_rx.finditer(t):
+            if not _is_standalone_token(t, m):
+                continue
+            token = (m.group(1) or "").upper()
+            if token.startswith("END-"):
+                kind = token[4:]
+                for i in range(len(stack) - 1, -1, -1):
+                    if stack[i][0] == kind:
+                        stack.pop(i)
+                        break
+                continue
+
+            if token == "PERFORM":
+                tgt = perform_target_rx.search(t)
+                if not tgt:
+                    nxt = _next_significant_line(_idx)
+                    nxt_target = next_target_rx.search(nxt) if nxt else None
+                    if nxt_target:
+                        continue
+                if not tgt and inline_hint_rx.search(t):
+                    stack.append(("PERFORM", lnno))
+                elif not tgt:
+                    stack.append(("PERFORM", lnno))
+                continue
+
+            stack.append((token, lnno))
+
+    return [(lnno, kind) for kind, lnno in stack]
+
+
+def find_a_main_statement_violations(cob_lines_with_linenos: List[Tuple[int, str]]) -> List[Tuple[int, str]]:
+    """Return list of (line_no, line_text) for statements not allowed inside A-MAIN SECTION."""
+    section_decls = build_section_map(cob_lines_with_linenos)
+    allowed_tokens = {
+        "PERFORM",
+        "EVALUATE",
+        "IF",
+        "GOBACK",
+        "SORT",
+        "EXIT",
+        "END-IF",
+        "END-EVALUATE",
+        "END-PERFORM",
+        "ELSE",
+        "WHEN",
+    }
+    token_rx = re.compile(r"^\s*([A-Z0-9-]+)\b", re.IGNORECASE)
+
+    violations: List[Tuple[int, str]] = []
+    for lnno, txt in cob_lines_with_linenos:
+        t = re.sub(r"\*>.*$", "", txt).rstrip()
+        if not t.strip():
+            continue
+        if re.search(r"\bSECTION\b", t, re.IGNORECASE) or re.search(r"\bDIVISION\b", t, re.IGNORECASE):
+            continue
+        if _is_paragraph_label_line(t):
+            continue
+
+        cur_sec = current_section_at_line(section_decls, lnno)
+        if cur_sec != "A-MAIN":
+            continue
+
+        m = token_rx.search(t)
+        if not m:
+            continue
+        token = (m.group(1) or "").upper()
+        if token in allowed_tokens:
+            continue
+        if token in COBOL_RESERVED_LABELS:
+            violations.append((lnno, t.strip()))
+
+    return violations
+
+
+def find_recursive_perform_calls(cob_lines_with_linenos: List[Tuple[int, str]]) -> List[Tuple[int, str, str]]:
+    """Return list of (line_no, src_paragraph, target_paragraph) where a PERFORM is recursive."""
+    par_decls = get_paragraph_decls(cob_lines_with_linenos)
+    par_idx = {name: lnno for lnno, name in par_decls}
+    perform_rx = re.compile(r"\bPERFORM\s+([A-Z0-9][A-Z0-9-]*)\b", re.IGNORECASE)
+
+    edges: List[Tuple[str, str, int]] = []
+    for lnno, txt in cob_lines_with_linenos:
+        t = re.sub(r"\*>.*$", "", txt)
+        if _is_paragraph_label_line(t):
+            continue
+        src = current_paragraph_at_line(par_decls, lnno)
+        if not src:
+            continue
+        for m in perform_rx.finditer(t):
+            target = (m.group(1) or "").upper()
+            if target in par_idx:
+                edges.append((src, target, lnno))
+
+    graph: Dict[str, List[str]] = {}
+    for src, dst, _lnno in edges:
+        graph.setdefault(src, []).append(dst)
+
+    reachable: Dict[str, set] = {}
+
+    def dfs(node: str, visiting: set) -> set:
+        if node in reachable:
+            return reachable[node]
+        visiting.add(node)
+        out = set()
+        for nxt in graph.get(node, []):
+            out.add(nxt)
+            if nxt not in visiting:
+                out |= dfs(nxt, visiting)
+        visiting.remove(node)
+        reachable[node] = out
+        return out
+
+    for node in graph:
+        dfs(node, set())
+
+    viols: List[Tuple[int, str, str]] = []
+    for src, dst, lnno in edges:
+        if src == dst:
+            viols.append((lnno, src, dst))
+            continue
+        if src in reachable.get(dst, set()):
+            viols.append((lnno, src, dst))
+
+    return viols
+
+
+def find_recursive_call_violations(cob_lines_with_linenos: List[Tuple[int, str]]) -> List[Tuple[int, str]]:
+    """Return list of (line_no, call_target) for CALLs that invoke the same PROGRAM-ID."""
+    prog_id, _prog_ln = find_program_id(cob_lines_with_linenos)
+    if not prog_id:
+        return []
+
+    call_lit_rx = re.compile(r"\bCALL\s+['\"]([A-Z0-9][A-Z0-9-]*)['\"]", re.IGNORECASE)
+    viols: List[Tuple[int, str]] = []
+
+    for lnno, txt in cob_lines_with_linenos:
+        t = re.sub(r"\*>.*$", "", txt)
+        for m in call_lit_rx.finditer(t):
+            target = (m.group(1) or "").upper()
+            if normalize_name_for_compare(target) == normalize_name_for_compare(prog_id):
+                viols.append((lnno, target))
+
+    return viols
+
+
+def _normalize_code_lines(lines: List[str]) -> List[str]:
+    norm: List[str] = []
+    for line in lines:
+        t = re.sub(r"\*>.*$", "", line)
+        t = re.sub(r"\"[^\"]*\"|'[^']*'", "S", t)
+        t = re.sub(r"\d+", "N", t)
+        t = re.sub(r"\s+", "", t)
+        if t:
+            norm.append(t)
+    return norm
+
+
+def find_duplicate_code_blocks(cob_lines_with_linenos: List[Tuple[int, str]], min_lines: int = 2) -> List[Tuple[int, str, str]]:
+    """
+    Return list of (line_no, paragraph_name, original_paragraph) for duplicate code blocks.
+    Uses normalized paragraph bodies as fingerprints.
+    """
+    decls = get_paragraph_decls(cob_lines_with_linenos)
+    seen: Dict[str, Tuple[str, int]] = {}
+    dups: List[Tuple[int, str, str]] = []
+
+    for lnno, pname in decls:
+        _decl_ln, body = get_paragraph_body_lines(cob_lines_with_linenos, pname)
+        norm = _normalize_code_lines(body)
+        if len(norm) < min_lines:
+            continue
+        fingerprint = "\n".join(norm)
+        if fingerprint in seen:
+            orig_name, _orig_ln = seen[fingerprint]
+            dups.append((lnno, pname, orig_name))
+        else:
+            seen[fingerprint] = (pname, lnno)
+
+    return dups
+
+
+def find_long_numeric_literals(cob_lines_with_linenos: List[Tuple[int, str]], min_len: int = 8) -> List[Tuple[int, str]]:
+    """Return list of (line_no, literal_snippet) for string literals containing long digit sequences."""
+    lit_rx = re.compile(r"(['\"])(.*?)\1")
+    digits_rx = re.compile(rf"\d{{{min_len},}}")
+    viols: List[Tuple[int, str]] = []
+
+    for lnno, txt in cob_lines_with_linenos:
+        t = re.sub(r"\*>.*$", "", txt)
+        for m in lit_rx.finditer(t):
+            lit = m.group(2) or ""
+            if digits_rx.search(lit):
+                viols.append((lnno, lit))
+
+    return viols
 
 
 def build_paragraph_occurrences(cob_lines_with_linenos: List[Tuple[int, str]]) -> Dict[str, List[int]]:

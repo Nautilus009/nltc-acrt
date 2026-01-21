@@ -109,6 +109,42 @@ def clean_cobol_source_with_linenos(path: str, encoding: str = "iso-8859-8") -> 
     return out
 
 
+def _normalize_line_for_map(line: str) -> str:
+    t = line.strip().upper()
+    t = re.sub(r"^\d+\s+", "", t)
+    t = re.sub(r"\s+", "", t)
+    return t
+
+
+def map_listing_lines_to_cob_lines(
+    listing_lines: List[str],
+    cob_lines_with_linenos: List[Tuple[int, str]],
+) -> List[int]:
+    """
+    Map listing lines to COBOL source line numbers using simple sequential matching.
+    Unmatched lines map to 0.
+    """
+    cob_norm = [(_normalize_line_for_map(txt), lnno) for lnno, txt in cob_lines_with_linenos]
+    mapping: List[int] = []
+    cob_idx = 0
+
+    for line in listing_lines:
+        norm = _normalize_line_for_map(line)
+        if not norm:
+            mapping.append(0)
+            continue
+
+        found = 0
+        for j in range(cob_idx, len(cob_norm)):
+            if cob_norm[j][0] == norm:
+                found = cob_norm[j][1]
+                cob_idx = j + 1
+                break
+        mapping.append(found)
+
+    return mapping
+
+
 def parse_yn(attr_val: str, default: bool) -> bool:
     if attr_val is None:
         return default

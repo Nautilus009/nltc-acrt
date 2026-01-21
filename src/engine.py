@@ -3,13 +3,19 @@ import sys
 from typing import Dict, List, Tuple
 
 from cobol import (
+    find_a_main_statement_violations,
     find_divisions_in_source,
+    find_duplicate_code_blocks,
     find_duplicate_paragraphs,
     find_evaluate_without_when_other,
     find_goto_exit_only_violations,
+    find_long_numeric_literals,
+    find_missing_end_clauses,
     find_paragraph_prefix_mismatches,
     find_program_id,
     find_procedure_division_line,
+    find_recursive_call_violations,
+    find_recursive_perform_calls,
     get_section_decls_from_source,
     normalize_name_for_compare,
 )
@@ -52,6 +58,7 @@ def apply_rules(
     context: str,
     expected_prog_base: str,
     cob_lines_with_linenos: List[Tuple[int, str]] = None,
+    line_map: List[int] = None,
     max_samples_per_rule: int = 5,
 ) -> Tuple[Dict[str, int], List[RuleMatch]]:
     """
@@ -60,6 +67,19 @@ def apply_rules(
     """
     counts = {"E": 0, "W": 0, "I": 0}
     matches: List[RuleMatch] = []
+
+    def _map_src_locs(src_locs: List[int]) -> List[int]:
+        if not line_map:
+            return sorted(set([ln for ln in src_locs if ln]))
+        mapped: List[int] = []
+        for ln in src_locs:
+            if not ln:
+                continue
+            if 1 <= ln <= len(line_map):
+                cob_ln = line_map[ln - 1]
+                if cob_ln:
+                    mapped.append(cob_ln)
+        return sorted(set(mapped))
 
     for rule in rules:
         if not rule.run:
@@ -81,12 +101,12 @@ def apply_rules(
             if not prog_id:
                 counts[rule.severity] += 1
                 samples = ["PROGRAM-ID not found"]
-                matches.append(RuleMatch(rule=rule, count=1, sample_lines=samples, src_locations=[1]))
+                matches.append(RuleMatch(rule=rule, count=1, sample_lines=samples, src_locations=_map_src_locs([1])))
             elif expected_norm != found_norm:
                 counts[rule.severity] += 1
                 samples = [f"PROGRAM-ID={prog_id} (expected {expected_prog_base})"]
                 src_locs = [prog_ln] if prog_ln else [1]
-                matches.append(RuleMatch(rule=rule, count=1, sample_lines=samples, src_locations=src_locs))
+                matches.append(RuleMatch(rule=rule, count=1, sample_lines=samples, src_locations=_map_src_locs(src_locs)))
             continue
 
         # --------------------
@@ -103,7 +123,7 @@ def apply_rules(
                 for lnno, name in dups[:max_samples_per_rule]:
                     samples.append(f"Duplicate PARAGRAPH: {name} at line {lnno}")
                 src_locs = [lnno for lnno, _ in dups]
-                matches.append(RuleMatch(rule=rule, count=len(dups), sample_lines=samples, src_locations=src_locs))
+                matches.append(RuleMatch(rule=rule, count=len(dups), sample_lines=samples, src_locations=_map_src_locs(src_locs)))
             continue
 
         # --------------------
@@ -120,7 +140,7 @@ def apply_rules(
                 for lnno, pname, sec in mism[:max_samples_per_rule]:
                     samples.append(f"{pname} (line {lnno}) is in SECTION {sec}")
                 src_locs = [lnno for lnno, _, _ in mism]
-                matches.append(RuleMatch(rule=rule, count=len(mism), sample_lines=samples, src_locations=src_locs))
+                matches.append(RuleMatch(rule=rule, count=len(mism), sample_lines=samples, src_locations=_map_src_locs(src_locs)))
             continue
 
         # --------------------
@@ -136,7 +156,98 @@ def apply_rules(
                 samples: List[str] = [f"EVALUATE without WHEN OTHER count={len(viols)}"]
                 for lnno in viols[:max_samples_per_rule]:
                     samples.append(f"EVALUATE at line {lnno} missing WHEN OTHER")
-                matches.append(RuleMatch(rule=rule, count=len(viols), sample_lines=samples, src_locations=viols))
+                matches.append(RuleMatch(rule=rule, count=len(viols), sample_lines=samples, src_locations=_map_src_locs(viols)))
+            continue
+
+        # --------------------
+        # END_CLAUSE_REQUIRED (2.23)
+        # --------------------
+        if rule.rtype == "END_CLAUSE_REQUIRED":
+            if not cob_lines_with_linenos:
+                continue
+
+            missing = find_missing_end_clauses(cob_lines_with_linenos)
+            if missing:
+                counts[rule.severity] += len(missing)
+                samples: List[str] = [f"Missing END clause count={len(missing)}"]
+                for lnno, kind in missing[:max_samples_per_rule]:
+                    samples.append(f"{kind} started at line {lnno} missing END-{kind}")
+                src_locs = [lnno for lnno, _ in missing]
+                matches.append(RuleMatch(rule=rule, count=len(missing), sample_lines=samples, src_locations=_map_src_locs(src_locs)))
+            continue
+
+        # --------------------
+        # A_MAIN_STATEMENTS_ONLY (8.4)
+        # --------------------
+        if rule.rtype == "A_MAIN_STATEMENTS_ONLY":
+            if not cob_lines_with_linenos:
+                continue
+
+            viols = find_a_main_statement_violations(cob_lines_with_linenos)
+            if viols:
+                counts[rule.severity] += len(viols)
+                samples: List[str] = [f"A-MAIN disallowed statements count={len(viols)}"]
+                for lnno, text in viols[:max_samples_per_rule]:
+                    samples.append(f"Line {lnno}: {text}")
+                src_locs = [lnno for lnno, _ in viols]
+                matches.append(RuleMatch(rule=rule, count=len(viols), sample_lines=samples, src_locations=_map_src_locs(src_locs)))
+            continue
+
+        # --------------------
+        # NO_RECURSIVE_CALLS (2.20)
+        # --------------------
+        if rule.rtype == "NO_RECURSIVE_CALLS":
+            if not cob_lines_with_linenos:
+                continue
+
+            perf_viols = find_recursive_perform_calls(cob_lines_with_linenos)
+            call_viols = find_recursive_call_violations(cob_lines_with_linenos)
+            total = len(perf_viols) + len(call_viols)
+
+            if total:
+                counts[rule.severity] += total
+                samples: List[str] = [f"Recursive PERFORM/CALL count={total}"]
+                for lnno, src, dst in perf_viols[:max_samples_per_rule]:
+                    samples.append(f"PERFORM recursion: {src} -> {dst} at line {lnno}")
+                if len(samples) < max_samples_per_rule + 1:
+                    for lnno, target in call_viols[: max_samples_per_rule - (len(samples) - 1)]:
+                        samples.append(f"CALL recursion: {target} at line {lnno}")
+                src_locs = [lnno for lnno, _, _ in perf_viols] + [lnno for lnno, _ in call_viols]
+                matches.append(RuleMatch(rule=rule, count=total, sample_lines=samples, src_locations=_map_src_locs(src_locs)))
+            continue
+
+        # --------------------
+        # DUPLICATE_CODE (2.2)
+        # --------------------
+        if rule.rtype == "DUPLICATE_CODE":
+            if not cob_lines_with_linenos:
+                continue
+
+            dups = find_duplicate_code_blocks(cob_lines_with_linenos)
+            if dups:
+                counts[rule.severity] += len(dups)
+                samples: List[str] = [f"Duplicate code blocks count={len(dups)}"]
+                for lnno, pname, orig in dups[:max_samples_per_rule]:
+                    samples.append(f"{pname} duplicates {orig} at line {lnno}")
+                src_locs = [lnno for lnno, _, _ in dups]
+                matches.append(RuleMatch(rule=rule, count=len(dups), sample_lines=samples, src_locations=_map_src_locs(src_locs)))
+            continue
+
+        # --------------------
+        # FORBIDDEN_LONG_NUMBERS (100)
+        # --------------------
+        if rule.rtype == "FORBIDDEN_LONG_NUMBERS":
+            if not cob_lines_with_linenos:
+                continue
+
+            viols = find_long_numeric_literals(cob_lines_with_linenos, min_len=8)
+            if viols:
+                counts[rule.severity] += len(viols)
+                samples: List[str] = [f"Hard-coded long numeric strings count={len(viols)}"]
+                for lnno, lit in viols[:max_samples_per_rule]:
+                    samples.append(f"Line {lnno}: \"{lit}\"")
+                src_locs = [lnno for lnno, _ in viols]
+                matches.append(RuleMatch(rule=rule, count=len(viols), sample_lines=samples, src_locations=_map_src_locs(src_locs)))
             continue
 
         # --------------------
@@ -180,7 +291,7 @@ def apply_rules(
                     if idx < len(uniq_order):
                         src_locs = [uniq_order[idx][1]]
 
-                matches.append(RuleMatch(rule=rule, count=1, sample_lines=samples, src_locations=src_locs))
+                matches.append(RuleMatch(rule=rule, count=1, sample_lines=samples, src_locations=_map_src_locs(src_locs)))
             continue
 
         # --------------------
@@ -200,7 +311,7 @@ def apply_rules(
                 proc_ln = find_procedure_division_line(cob_lines_with_linenos)
                 samples = [f"Missing SECTION(s): {', '.join(missing)}"]
                 src_locs = [proc_ln]
-                matches.append(RuleMatch(rule=rule, count=1, sample_lines=samples, src_locations=src_locs))
+                matches.append(RuleMatch(rule=rule, count=1, sample_lines=samples, src_locations=_map_src_locs(src_locs)))
             continue
 
         # --------------------
@@ -220,7 +331,7 @@ def apply_rules(
                 anchor = divs.get("IDENTIFICATION", 1)
                 samples = [f"Missing DIVISION(s): {', '.join(missing)}"]
                 src_locs = [anchor]
-                matches.append(RuleMatch(rule=rule, count=1, sample_lines=samples, src_locations=src_locs))
+                matches.append(RuleMatch(rule=rule, count=1, sample_lines=samples, src_locations=_map_src_locs(src_locs)))
             continue
 
         # --------------------
@@ -271,7 +382,7 @@ def apply_rules(
                 for nm, decl_ln in unused[:max_samples_per_rule]:
                     samples.append(f"{nm} (declared at line {decl_ln})")
                 src_locs = [decl_ln for _, decl_ln in unused]
-                matches.append(RuleMatch(rule=rule, count=len(unused), sample_lines=samples, src_locations=src_locs))
+                matches.append(RuleMatch(rule=rule, count=len(unused), sample_lines=samples, src_locations=_map_src_locs(src_locs)))
             continue
 
         # --------------------
@@ -288,7 +399,7 @@ def apply_rules(
                 for v_ln, target, reason in viols[:max_samples_per_rule]:
                     samples.append(f"GO TO {target} at line {v_ln}: {reason}")
                 src_locs = [v_ln for v_ln, _, _ in viols]
-                matches.append(RuleMatch(rule=rule, count=len(viols), sample_lines=samples, src_locations=src_locs))
+                matches.append(RuleMatch(rule=rule, count=len(viols), sample_lines=samples, src_locations=_map_src_locs(src_locs)))
             continue
 
         # --------------------
@@ -322,7 +433,7 @@ def apply_rules(
                     rule=rule,
                     count=hit,
                     sample_lines=samples,
-                    src_locations=sorted(set(src_locs)),
+                    src_locations=_map_src_locs(src_locs),
                 )
             )
 
@@ -359,6 +470,16 @@ def format_rule_matches(title: str, matches: List[RuleMatch], cob_filename: str)
             out.append("   Type  : PARAGRAPH_PREFIX_MATCH\n")
         elif m.rule.rtype == "EVALUATE_WHEN_OTHER":
             out.append("   Type  : EVALUATE_WHEN_OTHER\n")
+        elif m.rule.rtype == "END_CLAUSE_REQUIRED":
+            out.append("   Type  : END_CLAUSE_REQUIRED\n")
+        elif m.rule.rtype == "A_MAIN_STATEMENTS_ONLY":
+            out.append("   Type  : A_MAIN_STATEMENTS_ONLY\n")
+        elif m.rule.rtype == "NO_RECURSIVE_CALLS":
+            out.append("   Type  : NO_RECURSIVE_CALLS\n")
+        elif m.rule.rtype == "DUPLICATE_CODE":
+            out.append("   Type  : DUPLICATE_CODE\n")
+        elif m.rule.rtype == "FORBIDDEN_LONG_NUMBERS":
+            out.append("   Type  : FORBIDDEN_LONG_NUMBERS\n")
         else:
             out.append(f"   Type  : {m.rule.rtype} (required={','.join(m.rule.required_list or [])})\n")
 

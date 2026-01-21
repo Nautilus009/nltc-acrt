@@ -9,7 +9,9 @@ from core import (
     append_text_locked,
     clean_cobol_source_with_linenos,
     clean_listing_text,
+    current_user,
     error_exit,
+    map_listing_lines_to_cob_lines,
     now_str,
     read_text,
     strip_known_ext,
@@ -62,18 +64,41 @@ def main() -> None:
     # Build COBOL source index for line number reporting
     cob_lines_with_linenos = clean_cobol_source_with_linenos(src_path)
 
+    master_lines_with_linenos = list(enumerate(master_clean, start=1))
+    local_lines_with_linenos = list(enumerate(private_clean, start=1))
+
+    master_line_map = map_listing_lines_to_cob_lines(master_clean, cob_lines_with_linenos)
+    local_line_map = map_listing_lines_to_cob_lines(private_clean, cob_lines_with_linenos)
+
     # Diff lines
     diff_lines = compute_local_only_diff(master_clean, private_clean)
+    diff_lines_with_linenos = list(enumerate(diff_lines, start=1))
+    diff_line_map = map_listing_lines_to_cob_lines(diff_lines, cob_lines_with_linenos)
 
     # Apply rules per context
     master_counts, master_matches = apply_rules(
-        master_clean, rules, context="MASTER", expected_prog_base=expected_prog_base, cob_lines_with_linenos=cob_lines_with_linenos
+        master_clean,
+        rules,
+        context="MASTER",
+        expected_prog_base=expected_prog_base,
+        cob_lines_with_linenos=master_lines_with_linenos,
+        line_map=master_line_map,
     )
     local_counts, local_matches = apply_rules(
-        private_clean, rules, context="LOCAL", expected_prog_base=expected_prog_base, cob_lines_with_linenos=cob_lines_with_linenos
+        private_clean,
+        rules,
+        context="LOCAL",
+        expected_prog_base=expected_prog_base,
+        cob_lines_with_linenos=local_lines_with_linenos,
+        line_map=local_line_map,
     )
     diff_counts, diff_matches = apply_rules(
-        diff_lines, rules, context="DIFF", expected_prog_base=expected_prog_base, cob_lines_with_linenos=cob_lines_with_linenos
+        diff_lines,
+        rules,
+        context="DIFF",
+        expected_prog_base=expected_prog_base,
+        cob_lines_with_linenos=diff_lines_with_linenos,
+        line_map=diff_line_map,
     )
 
     # Differences (Private - Master) from MASTER/LOCAL-scoped evaluations
@@ -108,6 +133,19 @@ def main() -> None:
         fail = True
 
     report_lines: List[str] = []
+    report_lines.append(
+        f"Getting current {acrt_tag()} status for {base} on {now_str()} (user: {current_user()}):\n"
+    )
+    report_lines.append(
+        f"On Master build directory : #Errors {master_counts['E']} #Warnings {master_counts['W']} #Infos {master_counts['I']}\n"
+    )
+    report_lines.append(
+        f"On Private build directory : #Errors {local_counts['E']} #Warnings {local_counts['W']} #Infos {local_counts['I']}\n"
+    )
+    report_lines.append(
+        f"The difference : Errors {diff_epilog['E']} Warnings {diff_epilog['W']} Infos {diff_epilog['I']}\n"
+    )
+    report_lines.append("\n")
     report_lines.append("ACRT RULES REPORT\n")
     report_lines.append("==================================================\n")
 
@@ -121,6 +159,13 @@ def main() -> None:
     report_lines.append(format_rule_matches(
         "Rule matches on MASTER LISTING (ALM build):",
         master_matches,
+        base
+    ))
+    report_lines.append("\n")
+
+    report_lines.append(format_rule_matches(
+        "Rule matches on LOCAL-ONLY DIFF (Private - Master):",
+        diff_matches,
         base
     ))
     report_lines.append("\n")

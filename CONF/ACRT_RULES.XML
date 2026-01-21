@@ -7,7 +7,7 @@
     <!-- REGEX: run on LOCAL-ONLY DIFF (Private - Master) to report newly introduced violations -->
     <Rule number="5.28" severity="E" run="Y"
           type="REGEX"
-          on_master="N" on_local="N" on_diff="Y">
+          on_master="Y" on_local="Y" on_diff="N">
       <Description>Do not use STOP RUN</Description>
       <Code>(?:^|[^A-Z0-9-])STOP\s+RUN(?:[^A-Z0-9-]|$)</Code>
     </Rule>
@@ -25,6 +25,30 @@
           type="REQUIRED_SECTIONS" required="A-MAIN,B-INIT,Z-FINISH"
           on_master="Y" on_local="Y" on_diff="N">
       <Description>The following sections are mandatory: A-MAIN, B-INIT, Z-FINISH</Description>
+      <Code></Code>
+    </Rule>
+
+    <!-- Source-level ERROR: END clauses required for IF/EVALUATE/READ/inline PERFORM (LOCAL source only) -->
+    <Rule number="2.23" severity="E" run="Y"
+          type="END_CLAUSE_REQUIRED"
+          on_master="N" on_local="Y" on_diff="N">
+      <Description>Add END-IF/END-EVALUATE/END-READ/END-PERFORM (inline PERFORM only)</Description>
+      <Code></Code>
+    </Rule>
+
+    <!-- Source-level ERROR: no recursive PERFORM/CALL (LOCAL source only) -->
+    <Rule number="2.20" severity="E" run="Y"
+          type="NO_RECURSIVE_CALLS"
+          on_master="N" on_local="Y" on_diff="N">
+      <Description>No recursive PERFORM/CALL</Description>
+      <Code></Code>
+    </Rule>
+
+    <!-- Source-level ERROR: avoid duplicate code blocks (LOCAL source only) -->
+    <Rule number="2.2" severity="E" run="Y"
+          type="DUPLICATE_CODE"
+          on_master="N" on_local="Y" on_diff="N">
+      <Description>Avoid duplicate code blocks</Description>
       <Code></Code>
     </Rule>
 
@@ -50,6 +74,14 @@
           type="GOTO_EXIT_ONLY_SAME_SECTION"
           on_master="N" on_local="Y" on_diff="N">
       <Description>GO TO is permitted only to the EXIT paragraph of the same SECTION (and the EXIT paragraph must contain only EXIT)</Description>
+      <Code></Code>
+    </Rule>
+
+    <!-- Source-level ERROR: A-MAIN contains only PERFORM/EVALUATE/IF/GOBACK/EXIT PROGRAM/SORT (LOCAL source only) -->
+    <Rule number="8.4" severity="E" run="Y"
+          type="A_MAIN_STATEMENTS_ONLY"
+          on_master="Y" on_local="Y" on_diff="N">
+      <Description>A-MAIN contains only PERFORM/EVALUATE/IF/GOBACK/EXIT PROGRAM/SORT</Description>
       <Code></Code>
     </Rule>
 
@@ -90,6 +122,14 @@
           type="EVALUATE_WHEN_OTHER"
           on_master="N" on_local="Y" on_diff="N">
       <Description>Use WHEN OTHER for every EVALUATE</Description>
+      <Code></Code>
+    </Rule>
+
+    <!-- Source-level ERROR: hard-coded long numeric strings (LOCAL source only) -->
+    <Rule number="100" severity="E" run="Y"
+          type="FORBIDDEN_LONG_NUMBERS"
+          on_master="N" on_local="Y" on_diff="N">
+      <Description>Do not hard-code long numeric strings (8+ digits)</Description>
       <Code></Code>
     </Rule>
 
