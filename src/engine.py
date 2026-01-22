@@ -493,12 +493,12 @@ def format_rule_matches(title: str, matches: List[RuleMatch], cob_filename: str)
     return "".join(out)
 
 
-def diagnostics_only(matches: List[RuleMatch], cob_filename: str, severities: Tuple[str, ...] = ("E",)) -> str:
-    """
-    Spool output (stdout): show ONLY diagnostics lines.
-    """
+def _diagnostic_lines(
+    matches: List[RuleMatch],
+    cob_filename: str,
+    severities: Tuple[str, ...],
+) -> List[str]:
     sev_word = {"E": "Error", "W": "Warning", "I": "Info"}
-
     out: List[str] = []
     for m in matches:
         if m.rule.severity not in severities:
@@ -509,6 +509,29 @@ def diagnostics_only(matches: List[RuleMatch], cob_filename: str, severities: Tu
                 out.append(f"   {cob_filename}:{lnno}: {sw}: {acrt_tag()} Rule {m.rule.number}: {m.rule.description}")
         else:
             out.append(f"   {cob_filename}:?: {sw}: {acrt_tag()} Rule {m.rule.number}: {m.rule.description} (line not found)")
+    return out
 
-    out = sorted(out)
+
+def diagnostics_only(matches: List[RuleMatch], cob_filename: str, severities: Tuple[str, ...] = ("E",)) -> str:
+    """
+    Spool output (stdout): show ONLY diagnostics lines.
+    """
+    out = sorted(_diagnostic_lines(matches, cob_filename, severities))
+    return "\n".join(out) + ("\n" if out else "")
+
+
+def diagnostics_diff_only(
+    local_matches: List[RuleMatch],
+    master_matches: List[RuleMatch],
+    diff_matches: List[RuleMatch],
+    cob_filename: str,
+    severities: Tuple[str, ...] = ("E", "W", "I"),
+) -> str:
+    """
+    Spool output (stdout): show ONLY diagnostics that appear in LOCAL but not in MASTER.
+    Includes DIFF-only rules as part of LOCAL.
+    """
+    local_lines = _diagnostic_lines(local_matches + diff_matches, cob_filename, severities)
+    master_lines = _diagnostic_lines(master_matches, cob_filename, severities)
+    out = sorted(set(local_lines) - set(master_lines))
     return "\n".join(out) + ("\n" if out else "")

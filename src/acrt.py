@@ -18,7 +18,7 @@ from core import (
     write_text,
     find_listing_paths,
 )
-from engine import apply_rules, compute_local_only_diff, diagnostics_only, format_rule_matches
+from engine import apply_rules, compute_local_only_diff, diagnostics_diff_only, format_rule_matches
 from rules import load_rules_config
 
 
@@ -186,9 +186,8 @@ def main() -> None:
     report_lines.append(f"Report generated at: {now_str()}\n")
     report = "".join(report_lines)
 
-    # Spool output (stdout): ONLY error diagnostics lines (from ALL contexts)
-    all_matches_for_stdout = diff_matches + local_matches + master_matches
-    diag = diagnostics_only(all_matches_for_stdout, base, severities=("E",))
+    # Spool output (stdout): ONLY diagnostics that appear in LOCAL but not in MASTER
+    diag = diagnostics_diff_only(local_matches, master_matches, diff_matches, base, severities=("E", "W", "I"))
     if diag:
         print(diag, end="")
 
