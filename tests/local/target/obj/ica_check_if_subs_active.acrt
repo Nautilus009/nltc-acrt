@@ -1,26 +1,57 @@
-Getting current ACRT v0.3.0 status for ica_check_if_subs_active.cob on 2026-01-22 13:30:14 (user: orennissan):
+Getting current ACRT v0.3.0 status for ica_check_if_subs_active.cob on 2026-01-22 15:35:53 (user: orennissan):
 On Master build directory : #Errors 0 #Warnings 0 #Infos 0
-On Private build directory : #Errors 2 #Warnings 0 #Infos 0
-The difference : Errors 2 Warnings 0 Infos 0
+On Private build directory : #Errors 6 #Warnings 0 #Infos 0
+The difference : Errors 6 Warnings 0 Infos 0
 
 ACRT RULES REPORT
 ==================================================
 Rule matches on LOCAL LISTING (Private build):
 --------------------------------------------------
+[E] Rule 2.22: The following sections are mandatory: A-MAIN, B-INIT, Z-FINISH
+   Type  : REQUIRED_SECTIONS (required=A-MAIN,B-INIT,Z-FINISH)
+   Hits  : 1
+   Samples:
+     - Missing SECTION(s): B-INIT
+   ica_check_if_subs_active.cob:?: Error: ACRT v0.3.0 Rule 2.22: The following sections are mandatory: A-MAIN, B-INIT, Z-FINISH (line not found)
+
 [E] Rule 2.28: Do not use STOP RUN
    Regex : (?:^|[^A-Z0-9-])STOP\s+RUN(?:[^A-Z0-9-]|$)
    Hits  : 1
    Samples:
      -     STOP RUN
-   ica_check_if_subs_active.cob:751: Error: ACRT v0.3.0 Rule 2.28: Do not use STOP RUN
+   ica_check_if_subs_active.cob:?: Error: ACRT v0.3.0 Rule 2.28: Do not use STOP RUN (line not found)
+
+[E] Rule 3.22: SECTION and paragraph names must be unique in the program
+   Type  : UNIQUE_PARAGRAPHS
+   Hits  : 1
+   Samples:
+     - Duplicate PARAGRAPH(s) count=1
+     - Duplicate PARAGRAPH: A-00 at line 2762
+   ica_check_if_subs_active.cob:198: Error: ACRT v0.3.0 Rule 3.22: SECTION and paragraph names must be unique in the program
+
+[E] Rule 3.23: A paragraph name must have the same prefix as the section containing it
+   Type  : PARAGRAPH_PREFIX_MATCH
+   Hits  : 1
+   Samples:
+     - PARAGRAPH prefix mismatch count=1
+     - B-EXIT (line 2836) is in SECTION A-INIT
+   ica_check_if_subs_active.cob:295: Error: ACRT v0.3.0 Rule 3.23: A paragraph name must have the same prefix as the section containing it
+
+[E] Rule 8.1: Use WHEN OTHER for every EVALUATE
+   Type  : EVALUATE_WHEN_OTHER
+   Hits  : 1
+   Samples:
+     - EVALUATE without WHEN OTHER count=1
+     - EVALUATE at line 2891 missing WHEN OTHER
+   ica_check_if_subs_active.cob:?: Error: ACRT v0.3.0 Rule 8.1: Use WHEN OTHER for every EVALUATE (line not found)
 
 [E] Rule 8.3: GO TO is permitted only to the EXIT paragraph of the same SECTION (and the EXIT paragraph must contain only EXIT)
    Type  : GOTO_EXIT_ONLY_SAME_SECTION
    Hits  : 1
    Samples:
      - GO TO violations count=1
-     - GO TO Z-00 at line 3045: GO TO allowed only to ['Z-EX', 'Z-EXIT'] in SECTION Z-FINISH
-   ica_check_if_subs_active.cob:749: Error: ACRT v0.3.0 Rule 8.3: GO TO is permitted only to the EXIT paragraph of the same SECTION (and the EXIT paragraph must contain only EXIT)
+     - GO TO Z-00 at line 3059: GO TO allowed only to ['Z-EX', 'Z-EXIT'] in SECTION Z-FINISH
+   ica_check_if_subs_active.cob:?: Error: ACRT v0.3.0 Rule 8.3: GO TO is permitted only to the EXIT paragraph of the same SECTION (and the EXIT paragraph must contain only EXIT) (line not found)
 
 
 Rule matches on MASTER LISTING (ALM build):
@@ -30,7 +61,7 @@ Rule matches on LOCAL-ONLY DIFF (Private - Master):
 No rule matches.
 
 Thresholds: Errors>0 Warnings>50 Infos>100
-Current abs diff: Errors=2 Warnings=0 Infos=0
+Current abs diff: Errors=6 Warnings=0 Infos=0
 
 RESULT: ERROR - the following ica_check_if_subs_active.cob program does not meet ACRT v0.3.0 standards.
-Report generated at: 2026-01-22 13:30:14
+Report generated at: 2026-01-22 15:35:53

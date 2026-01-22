@@ -15,4 +15,4 @@ __pycache__/
 tmp/
 
 # Test fixtures
-tests/src/.freebidi/
+tests/local/src/.freebidi/

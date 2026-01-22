@@ -523,15 +523,18 @@ def find_recursive_call_violations(cob_lines_with_linenos: List[Tuple[int, str]]
 def find_long_numeric_literals(cob_lines_with_linenos: List[Tuple[int, str]], min_len: int = 8) -> List[Tuple[int, str]]:
     """Return list of (line_no, literal_snippet) for string literals containing long digit sequences."""
     lit_rx = re.compile(r"(['\"])(.*?)\1")
-    digits_rx = re.compile(rf"\d{{{min_len},}}")
+    digits_rx = re.compile(r"\d+")
     viols: List[Tuple[int, str]] = []
 
     for lnno, txt in cob_lines_with_linenos:
         t = re.sub(r"\*>.*$", "", txt)
         for m in lit_rx.finditer(t):
             lit = m.group(2) or ""
-            if digits_rx.search(lit):
-                viols.append((lnno, lit))
+            for dm in digits_rx.finditer(lit):
+                seq = dm.group(0)
+                if len(seq.lstrip("0")) >= min_len:
+                    viols.append((lnno, lit))
+                    break
 
     return viols
 

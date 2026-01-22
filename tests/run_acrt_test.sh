@@ -10,4 +10,4 @@ export BUILD_LOCAL_PATH_BB="../tests/local"
 
 #export ACRT_EXCLUDE="icd*.pco;ica_check*_subs_active.cob;"
 
-python3 acrt.py ../tests/src/ica_check_if_subs_active.cob
+python3 acrt.py ica_check_if_subs_active.cob

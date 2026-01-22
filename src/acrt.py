@@ -38,14 +38,19 @@ def main() -> None:
     conf_path = os.path.join(acrt_home, "CONF", "ACRT_RULES.XML")
     rules, thresholds = load_rules_config(conf_path)
 
-    src_path = os.path.abspath(pa.cobfile)
-    if not os.path.isfile(src_path):
-        error_exit(f"COBOL source file not found: {src_path}")
-
-    base = os.path.basename(src_path)
+    input_path = os.path.abspath(pa.cobfile)
+    base = os.path.basename(input_path)
     lower = base.lower()
     if not any(lower.endswith(ext) for ext in ACCEPTED_EXTS):
         error_exit(f"Input must be one of: {', '.join(ACCEPTED_EXTS)}  (got: {base})")
+
+    build_local = os.path.expandvars(os.environ.get("BUILD_LOCAL_PATH_BB", ""))
+    if not build_local:
+        error_exit("Environment variable BUILD_LOCAL_PATH_BB is not set.")
+    local_src_path = os.path.join(build_local, "src", base)
+    if not os.path.isfile(local_src_path):
+        error_exit(f"Local source file not found: {local_src_path}")
+    src_path = local_src_path
 
     exclude_env = os.environ.get("ACRT_EXCLUDE", "")
     if _is_excluded_by_env(base, exclude_env):
@@ -60,8 +65,8 @@ def main() -> None:
     master_clean = clean_listing_text(read_text(master_lis))
     private_clean = clean_listing_text(read_text(private_lis))
 
-    # Build COBOL source index for line number reporting
-    cob_lines_with_linenos = clean_cobol_source_with_linenos(src_path)
+    # Build COBOL source index for line number reporting from local build source
+    cob_lines_with_linenos = clean_cobol_source_with_linenos(local_src_path)
 
     master_lines_with_linenos = list(enumerate(master_clean, start=1))
     local_lines_with_linenos = list(enumerate(private_clean, start=1))
