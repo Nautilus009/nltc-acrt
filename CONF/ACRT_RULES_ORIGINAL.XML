@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE module PUBLIC "-//Puppy Crawl//DTD Check Configuration 1.3//EN" "http://www.puppycrawl.com/dtds/configuration_1_3.dtd">
+ 
+<!--
+    This configuration file was written by the eclipse-cs plugin configuration editor
+-->
+<!--
+    Checkstyle-Configuration: ACRT - Visa Cal
+    Description: none
+-->
+<module name="Checker">
+  <property name="severity" value="warning"/>
+  <module name="CobolCheck">
+    <property name="id" value="11111"/>
+    <message key="2.3"  value="W:3500,E:5000+Do not write programs having more than [?] lines in the PROCEDURE DIVISION."/>
+    <message key="2.4" value="W+Do not use more than [2] nested COBOL functions."/>
+    <message key="2.5" value="W+Do not use hard-coded constants in PROCEDURE DIVISION. Define constant variables in CXX"/>
+    <message key="ValidConstants" value="batch;W;ACMS;B;EQ"/>
+               <message key="ValidTargetsForConstants" value="l$_free_text;l$_hello;sp$_acw_free_text"/>
+               <message key="ValidPrefixes" value="SYM$;V$"/>
+   <message key="2.6" value="W+Do not use more than [3] levels of nesting statements."/>
+    <message key="2.8" value="W+Write short sections (up to [200] lines of code not including comments)."/>
+    <message key="2.18" value="W+Do not use the ALSO clause in the EVALUATE statement"/>
+    <message key="2.19" value="W+Use PERFORM SECTION only and without THRU and not PERFORM paragraph."/>
+    <message key="2.20" value="E+Do not use recursive PERFORM and CALL"/>
+    <message key="2.22" value="E+The following sections are mandatory: A-MAIN, B-INIT, Z-FINISH"/>
+    <message key="2.23" value="E+Add an END clause to the following statements: EVALUATE, IF, READ, inline PERFORM, CALL"/>
+    <message key="2.25" value="W+Do not use the following statements: ALTER, RENAME, GO TO DEPENDING ON, NEXT SENTENCE, MOVE MOVE CORR, ENTRY, ACCEPT DATE"/>
+    <message key="2.24" value="I+The GOBACK, EXIT PROGRAM will be used only in the A-MAIN SECTION OR X-ERROR SECTION"/>
+    <message key="2.27" value="W+Never change the index inside a loop (PERFORM VARYING)"/>
+    <message key="2.28" value="E+Do not use STOP RUN"/>
+    <message key="2.29" value="I+Use LOW-VALUE instead of X?00? and HIGH-VALUE instead of X?FF?"/>
+    <message key="2.30" value="W+Use COPY for records in FD"/>
+    <message key="2.32" value="I+Do not use more than [50] sections in one program."/>
+    <message key="2.33" value="F+limit the source line to [132] characters."/>
+ 
+    <message key="3.1" value="I+Use separating comment lines before and after SECTIONs and DIVISIONs."/>
+    <message key="3.4" value="W+Each section must include the paragraph: X-EXIT  or X-EX except in Declaratives (X is the section prefix)"/>
+    <message key="3.5" value="W+The exit paragraph name must have the structure: X-EX. EXIT Or X-EXIT. EXIT. (X is the section prefix)"/>
+    <message key="3.6" value="W+The exit paragraph must include only the EXIT statement:"/>
+    <message key="3.7" value="I+Do not overuse blank lines."/>
+    <message key="3.8" value="E+Each source line must contain a single command only"/>
+    <message key="3.9" value="I+Do not write spaces after the opening parenthesis, &quot;(&quot;,  and before the closing parenthesis, &quot;)&quot;."/>
+    <message key="3.10" value="I+Add a space around assignment and binary/conditional operators."/>
+    <message key="3.11" value="I+Add a space after commas"/>
+    <message key="3.13" value="I+Place the else statement in its own line, except for else if."/>
+    <message key="3.14" value="I+If a condition is written on more than one line, place the &quot;AND/OR&quot;  to the right of the conditions."/>
+    <message key="3.18" value="I+Use THEN for every IF"/>
+    <message key="3.19" value="I+All four DIVISIONs must be declared in every program"/>
+    <message key="3.20" value="W+Use only the paragraph X-EXIT except in Declaratives"/>
+    <message key="3.22" value="E+A paragraph name must be unique in the program"/>
+    <message key="3.23" value="E+A paragraph name must have the same prefix as the section containing it"/>
+               
+    <message key="4.1" value="W+Total comment lines, must not exceed 60% of the code."/>
+    <message key="4.5" value="I+A section documentation must be written before each section in PROCEDURE DIVISION"/>
+ 
+    <message key="5.1" value="E+There must not be any unused code."/>
+    <message key="5.6" value="W+There must not be any unused variables."/>
+    <message key="5.12" value="W+For COMP/BINARY variables use 4, 9 or 18 digits"/>
+    <message key="5.14" value="I+Use COMPUTE instead of other complex statements (with GIVING...)"/>
+ 
+    <message key="6.10" value="W+Program data structure levels should be only: 01, 03, 05 ?(Not 78, 77 or 66)."/>
+    <message key="6.13" value="I+Use DE MORGAN rules for more than two &quot;&amp;&amp; !&quot; or two &quot;|| !&quot;."/>
+    <message key="6.19" value="W+Use INITIALIZE only in the B-INIT."/>
+    <message key="6.23" value="E+Do not use the EXIT SECTION statement. (EXIT PARAGRAPH statement is permitted)"/>
+    <message key="6.26" value="E+PROGRAM-ID has to be identical to the file name (without the extension)"/>
+    <message key="6.27" value="I+Use a FILE STATUS for every file in the program"/>
+ 
+    <message key="7.2" value="I+Use standard naming conventions of name prefix for variables, section names and file and record names.."/>
+    <message key="7.5" value="I+The file record prefix must have the same prefix as the corresponding file"/>
+    <message key="7.12" value="I+Variable names must be declared  up to 30 characters long"/>
+ 
+    <message key="8.1" value="E+Use WHEN OTHER for every EVALUATE."/>
+    <message key="8.3" value="E+GO TO is permitted only to the EXIT label of the same SECTION"/>
+    <message key="8.4" value="E+A-MAIN Section contains only PERFORM, EVALUATE,IF, GOBACK, EXIT PROGRAM and SORT statements."/>
+ 
+    <message key="9.5" value="E+The index used is too small"/>
+    <message key="9.6" value="E+The index used is too large"/>
+ 
+    <message key="10.0" value="E+Do not use the following hard coded string: 3640;4580;3655;5189;5100;3643;5364;5521;5477;3090;3642;3651;3612;5451;3620;6218;6766;3609;"/>
+    <message key="ValidVariables" value="ICA_ICF_EXCEPTION_HANDLER;AAA"/>
+ 
+    <message key="MaxAllowedErrors" value="[0]"/>
+    <message key="MaxAllowedWarnings" value="[50]"/>
+    <message key="MaxAllowedInfos" value="[100]"/>
+    <message key="IncludeInfosInMark" value="No"/>
+    <message key="IncludeWarningsInMark" value="No"/>
+    <message key="IncludeErrorsInMark" value="Yes"/>
+    <message key="PercentAllowedInErrors" value="0"/>
+    <message key="PercentAllowedInWarnings" value="0"/>
+    <message key="PercentAllowedInInfos" value="0"/>
+    <message key="ConfigurationFileFolder" value="\\bootes\ica_win_dir\acrt"/>
+ 
+    <metadata name="net.md.cobol.checks" value="c11111"/>
+  </module>
+  <!--module name="net.md.cobol.listeners.VerboseListener">
+                  <property name="file" value="audit.txt"/>
+                </module-->
+ 
+</module>

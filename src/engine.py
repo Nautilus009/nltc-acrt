@@ -5,7 +5,6 @@ from typing import Dict, List, Tuple
 from cobol import (
     find_a_main_statement_violations,
     find_divisions_in_source,
-    find_duplicate_code_blocks,
     find_duplicate_paragraphs,
     find_duplicate_sections,
     find_evaluate_without_when_other,
@@ -225,23 +224,6 @@ def apply_rules(
                         samples.append(f"CALL recursion: {target} at line {lnno}")
                 src_locs = [lnno for lnno, _, _ in perf_viols] + [lnno for lnno, _ in call_viols]
                 matches.append(RuleMatch(rule=rule, count=total, sample_lines=samples, src_locations=_map_src_locs(src_locs)))
-            continue
-
-        # --------------------
-        # DUPLICATE_CODE (2.2)
-        # --------------------
-        if rule.rtype == "DUPLICATE_CODE":
-            if not cob_lines_with_linenos:
-                continue
-
-            dups = find_duplicate_code_blocks(cob_lines_with_linenos)
-            if dups:
-                counts[rule.severity] += len(dups)
-                samples: List[str] = [f"Duplicate code blocks count={len(dups)}"]
-                for lnno, pname, orig in dups[:max_samples_per_rule]:
-                    samples.append(f"{pname} duplicates {orig} at line {lnno}")
-                src_locs = [lnno for lnno, _, _ in dups]
-                matches.append(RuleMatch(rule=rule, count=len(dups), sample_lines=samples, src_locations=_map_src_locs(src_locs)))
             continue
 
         # --------------------
@@ -487,8 +469,6 @@ def format_rule_matches(title: str, matches: List[RuleMatch], cob_filename: str)
             out.append("   Type  : A_MAIN_STATEMENTS_ONLY\n")
         elif m.rule.rtype == "NO_RECURSIVE_CALLS":
             out.append("   Type  : NO_RECURSIVE_CALLS\n")
-        elif m.rule.rtype == "DUPLICATE_CODE":
-            out.append("   Type  : DUPLICATE_CODE\n")
         elif m.rule.rtype == "FORBIDDEN_LONG_NUMBERS":
             out.append("   Type  : FORBIDDEN_LONG_NUMBERS\n")
         else:

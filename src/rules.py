@@ -17,7 +17,7 @@ class Rule:
 
     # Rule type and parameters
     rtype: str = "REGEX"  # REGEX | MAX_SECTIONS | REQUIRED_SECTIONS | REQUIRED_DIVISIONS | UNUSED_SECTIONS | GOTO_EXIT_ONLY_SAME_SECTION |
-                          # PROGRAM_ID_MATCH | UNIQUE_PARAGRAPHS | PARAGRAPH_PREFIX_MATCH | EVALUATE_WHEN_OTHER
+                          # PROGRAM_ID_MATCH | UNIQUE_PARAGRAPHS | PARAGRAPH_PREFIX_MATCH | EVALUATE_WHEN_OTHER | DECL_OR_COPY_DOT
     max_value: int = 0
     required_list: List[str] = None
     exclude_list: List[str] = None

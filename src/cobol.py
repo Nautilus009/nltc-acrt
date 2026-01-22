@@ -520,42 +520,6 @@ def find_recursive_call_violations(cob_lines_with_linenos: List[Tuple[int, str]]
     return viols
 
 
-def _normalize_code_lines(lines: List[str]) -> List[str]:
-    norm: List[str] = []
-    for line in lines:
-        t = re.sub(r"\*>.*$", "", line)
-        t = re.sub(r"\"[^\"]*\"|'[^']*'", "S", t)
-        t = re.sub(r"\d+", "N", t)
-        t = re.sub(r"\s+", "", t)
-        if t:
-            norm.append(t)
-    return norm
-
-
-def find_duplicate_code_blocks(cob_lines_with_linenos: List[Tuple[int, str]], min_lines: int = 2) -> List[Tuple[int, str, str]]:
-    """
-    Return list of (line_no, paragraph_name, original_paragraph) for duplicate code blocks.
-    Uses normalized paragraph bodies as fingerprints.
-    """
-    decls = get_paragraph_decls(cob_lines_with_linenos)
-    seen: Dict[str, Tuple[str, int]] = {}
-    dups: List[Tuple[int, str, str]] = []
-
-    for lnno, pname in decls:
-        _decl_ln, body = get_paragraph_body_lines(cob_lines_with_linenos, pname)
-        norm = _normalize_code_lines(body)
-        if len(norm) < min_lines:
-            continue
-        fingerprint = "\n".join(norm)
-        if fingerprint in seen:
-            orig_name, _orig_ln = seen[fingerprint]
-            dups.append((lnno, pname, orig_name))
-        else:
-            seen[fingerprint] = (pname, lnno)
-
-    return dups
-
-
 def find_long_numeric_literals(cob_lines_with_linenos: List[Tuple[int, str]], min_len: int = 8) -> List[Tuple[int, str]]:
     """Return list of (line_no, literal_snippet) for string literals containing long digit sequences."""
     lit_rx = re.compile(r"(['\"])(.*?)\1")
