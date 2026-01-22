@@ -2,11 +2,11 @@ import argparse
 import os
 import sys
 from typing import List, Tuple
+import fnmatch
 
 from core import (
     ACCEPTED_EXTS,
     acrt_tag,
-    append_text_locked,
     clean_cobol_source_with_linenos,
     clean_listing_text,
     current_user,
@@ -47,13 +47,12 @@ def main() -> None:
     if not any(lower.endswith(ext) for ext in ACCEPTED_EXTS):
         error_exit(f"Input must be one of: {', '.join(ACCEPTED_EXTS)}  (got: {base})")
 
-    expected_prog_base = strip_known_ext(base).upper()
+    exclude_env = os.environ.get("ACRT_EXCLUDE", "")
+    if _is_excluded_by_env(base, exclude_env):
+        print(f"{base}: excluded by ACRT_EXCLUDE")
+        sys.exit(0)
 
-    # Status file: <sourcefile>_acrt under $ACRT_HOME
-    status_name = base + "_acrt"
-    status_path = os.path.join(acrt_home, status_name)
-    if not os.path.exists(status_path):
-        write_text(status_path, "")  # create
+    expected_prog_base = strip_known_ext(base).upper()
 
     master_lis, private_lis = find_listing_paths(src_path)
 
@@ -191,10 +190,25 @@ def main() -> None:
     if diag:
         print(diag, end="")
 
-    # Status file: full report append with lock (prevents concurrent corruption)
-    append_text_locked(status_path, report + "\n" + ("=" * 80) + "\n")
+    # Status file: full report, overwritten each run
+    report_name = f"{expected_prog_base.lower()}.acrt"
+    report_path = os.path.join(private_lis.rsplit(os.sep, 1)[0], report_name)
+    write_text(report_path, report)
 
     sys.exit(1 if fail else 0)
+
+
+def _is_excluded_by_env(filename: str, exclude_env: str) -> bool:
+    if not exclude_env:
+        return False
+    patterns = [p.strip() for p in exclude_env.split(";") if p.strip()]
+    if not patterns:
+        return False
+    name = filename.lower()
+    for pat in patterns:
+        if fnmatch.fnmatchcase(name, pat.lower()):
+            return True
+    return False
 
 
 def parse_command_line():
