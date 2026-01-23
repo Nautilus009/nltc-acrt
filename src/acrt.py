@@ -1,7 +1,7 @@
 import argparse
 import os
 import sys
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 import fnmatch
 
 from core import (
@@ -105,23 +105,33 @@ def main() -> None:
         line_map=diff_line_map,
     )
 
-    # Differences (Private - Master) from MASTER/LOCAL-scoped evaluations
+    # Differences (Private - Master) by rule number per severity
+    def _rule_keys(matches: List["RuleMatch"]) -> Dict[str, set]:
+        out = {"E": set(), "W": set(), "I": set()}
+        for m in matches:
+            sev = m.rule.severity
+            if sev in out:
+                out[sev].add(m.rule.number)
+        return out
+
+    local_keys = _rule_keys(local_matches)
+    master_keys = _rule_keys(master_matches)
     diff_epilog = {
-        "E": local_counts["E"] - master_counts["E"],
-        "W": local_counts["W"] - master_counts["W"],
-        "I": local_counts["I"] - master_counts["I"],
+        "E": len(local_keys["E"] - master_keys["E"]),
+        "W": len(local_keys["W"] - master_keys["W"]),
+        "I": len(local_keys["I"] - master_keys["I"]),
     }
 
     # Add DIFF-only rules into the epilog delta (rules that run only on DIFF)
-    diff_only_counts = {"E": 0, "W": 0, "I": 0}
+    diff_only_keys = {"E": set(), "W": set(), "I": set()}
     for m in diff_matches:
         r = m.rule
         if r.on_diff and (not r.on_master) and (not r.on_local):
-            diff_only_counts[r.severity] += m.count
+            diff_only_keys[r.severity].add(r.number)
 
-    diff_epilog["E"] += diff_only_counts["E"]
-    diff_epilog["W"] += diff_only_counts["W"]
-    diff_epilog["I"] += diff_only_counts["I"]
+    diff_epilog["E"] += len(diff_only_keys["E"])
+    diff_epilog["W"] += len(diff_only_keys["W"])
+    diff_epilog["I"] += len(diff_only_keys["I"])
 
     # Threshold decision based on absolute differences
     abs_err = abs(diff_epilog["E"])

@@ -11,7 +11,7 @@ import fcntl
 
 ACCEPTED_EXTS = (".cob", ".inc", ".pco")
 
-ACRT_VERSION = "0.3.1"
+ACRT_VERSION = "0.3.2"
 
 
 def acrt_tag() -> str:
