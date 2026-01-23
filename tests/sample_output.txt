@@ -1,2 +1,0 @@
-$ python3 acrt.py src/ica_check_if_subs_active.cob
-   ica_check_if_subs_active.cob:749: Error: ACRT Rule 5.28: Do not use STOP RUN
