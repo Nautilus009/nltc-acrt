@@ -1,16 +1,17 @@
+import bisect
 import datetime
 import getpass
 import os
 import re
 import sys
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 
 import fcntl
 
 
 ACCEPTED_EXTS = (".cob", ".inc", ".pco")
 
-ACRT_VERSION = "0.3.0"
+ACRT_VERSION = "0.3.1"
 
 
 def acrt_tag() -> str:
@@ -116,15 +117,78 @@ def _normalize_line_for_map(line: str) -> str:
     return t
 
 
+def _normalize_line_for_map_loose(line: str) -> str:
+    t = line.strip().upper()
+    t = re.sub(r"^\d+\s+", "", t)
+    t = re.sub(r"[^A-Z0-9]", "", t)
+    return t
+
+
+def _build_norm_index(norm_entries: List[Tuple[str, int]]) -> Dict[str, Tuple[List[int], List[int]]]:
+    index: Dict[str, Tuple[List[int], List[int]]] = {}
+    for pos, (norm, lnno) in enumerate(norm_entries):
+        if not norm:
+            continue
+        if norm not in index:
+            index[norm] = ([], [])
+        index[norm][0].append(pos)
+        index[norm][1].append(lnno)
+    return index
+
+
+def _find_next_in_index(index: Dict[str, Tuple[List[int], List[int]]], key: str, start_pos: int) -> Tuple[int, int]:
+    if not key:
+        return 0, start_pos
+    bucket = index.get(key)
+    if not bucket:
+        return 0, start_pos
+    positions, linenos = bucket
+    i = bisect.bisect_left(positions, start_pos)
+    if i >= len(positions):
+        return 0, start_pos
+    return linenos[i], positions[i] + 1
+
+
+def _find_window_fuzzy(
+    norm_entries: List[Tuple[str, int]],
+    key: str,
+    start_pos: int,
+    window: int = 2000,
+) -> Tuple[int, int]:
+    if not key:
+        return 0, start_pos
+    lo = max(0, start_pos - window)
+    hi = min(len(norm_entries), start_pos + window)
+    best_pos = -1
+    best_ln = 0
+    for pos in range(lo, hi):
+        cand, lnno = norm_entries[pos]
+        if not cand:
+            continue
+        if key == cand:
+            return lnno, pos + 1
+        if key in cand or cand in key:
+            best_pos = pos
+            best_ln = lnno
+            break
+    if best_pos >= 0:
+        return best_ln, best_pos + 1
+    return 0, start_pos
+
+
 def map_listing_lines_to_cob_lines(
     listing_lines: List[str],
     cob_lines_with_linenos: List[Tuple[int, str]],
 ) -> List[int]:
     """
-    Map listing lines to COBOL source line numbers using simple sequential matching.
+    Map listing lines to COBOL source line numbers using sequential matching
+    with strict/loose normalization fallback.
     Unmatched lines map to 0.
     """
-    cob_norm = [(_normalize_line_for_map(txt), lnno) for lnno, txt in cob_lines_with_linenos]
+    cob_norm_strict = [(_normalize_line_for_map(txt), lnno) for lnno, txt in cob_lines_with_linenos]
+    cob_norm_loose = [(_normalize_line_for_map_loose(txt), lnno) for lnno, txt in cob_lines_with_linenos]
+    strict_index = _build_norm_index(cob_norm_strict)
+    loose_index = _build_norm_index(cob_norm_loose)
     mapping: List[int] = []
     cob_idx = 0
 
@@ -134,12 +198,15 @@ def map_listing_lines_to_cob_lines(
             mapping.append(0)
             continue
 
-        found = 0
-        for j in range(cob_idx, len(cob_norm)):
-            if cob_norm[j][0] == norm:
-                found = cob_norm[j][1]
-                cob_idx = j + 1
-                break
+        found, next_idx = _find_next_in_index(strict_index, norm, cob_idx)
+        if not found:
+            loose = _normalize_line_for_map_loose(line)
+            found, next_idx = _find_next_in_index(loose_index, loose, cob_idx)
+        if not found:
+            loose = _normalize_line_for_map_loose(line)
+            found, next_idx = _find_window_fuzzy(cob_norm_loose, loose, cob_idx)
+        if found:
+            cob_idx = next_idx
         mapping.append(found)
 
     return mapping

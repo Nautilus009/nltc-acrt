@@ -17,7 +17,11 @@ from cobol import (
     find_recursive_call_violations,
     find_recursive_perform_calls,
     get_section_decls_from_source,
+    get_section_decls_after_procedure_excluding_declaratives,
     normalize_name_for_compare,
+    PERFORM_GOTO_REF_RX,
+    SECTION_DECL_RX,
+    filter_to_procedure_division,
 )
 from core import acrt_tag
 from rules import Rule, RuleMatch
@@ -81,20 +85,29 @@ def apply_rules(
                     mapped.append(cob_ln)
         return sorted(set(mapped))
 
+    proc_only_lines = None
+    if cob_lines_with_linenos:
+        proc_only_lines = filter_to_procedure_division(cob_lines_with_linenos)
+
     for rule in rules:
         if not rule.run:
             continue
         if not rule_runs_in_context(rule, context):
             continue
 
+        use_proc_only = rule.rtype not in ("REQUIRED_DIVISIONS", "PROGRAM_ID_MATCH", "FORBIDDEN_LONG_NUMBERS")
+        source_lines = cob_lines_with_linenos
+        if cob_lines_with_linenos and use_proc_only and proc_only_lines is not None:
+            source_lines = proc_only_lines
+
         # --------------------
         # PROGRAM_ID_MATCH (6.26)
         # --------------------
         if rule.rtype == "PROGRAM_ID_MATCH":
-            if not cob_lines_with_linenos:
+            if not source_lines:
                 continue
 
-            prog_id, prog_ln = find_program_id(cob_lines_with_linenos)
+            prog_id, prog_ln = find_program_id(source_lines)
             expected_norm = normalize_name_for_compare(expected_prog_base)
             found_norm = normalize_name_for_compare(prog_id)
 
@@ -113,11 +126,11 @@ def apply_rules(
         # UNIQUE_PARAGRAPHS (3.22)
         # --------------------
         if rule.rtype == "UNIQUE_PARAGRAPHS":
-            if not cob_lines_with_linenos:
+            if not source_lines:
                 continue
 
-            para_dups = find_duplicate_paragraphs(cob_lines_with_linenos)
-            sec_dups = find_duplicate_sections(cob_lines_with_linenos)
+            para_dups = find_duplicate_paragraphs(source_lines)
+            sec_dups = find_duplicate_sections(source_lines)
             total = len(para_dups) + len(sec_dups)
             if total:
                 counts[rule.severity] += total
@@ -140,10 +153,10 @@ def apply_rules(
         # PARAGRAPH_PREFIX_MATCH (3.23)
         # --------------------
         if rule.rtype == "PARAGRAPH_PREFIX_MATCH":
-            if not cob_lines_with_linenos:
+            if not source_lines:
                 continue
 
-            mism = find_paragraph_prefix_mismatches(cob_lines_with_linenos)
+            mism = find_paragraph_prefix_mismatches(source_lines)
             if mism:
                 counts[rule.severity] += len(mism)
                 samples: List[str] = [f"PARAGRAPH prefix mismatch count={len(mism)}"]
@@ -157,10 +170,10 @@ def apply_rules(
         # EVALUATE_WHEN_OTHER (8.1)
         # --------------------
         if rule.rtype == "EVALUATE_WHEN_OTHER":
-            if not cob_lines_with_linenos:
+            if not source_lines:
                 continue
 
-            viols = find_evaluate_without_when_other(cob_lines_with_linenos)
+            viols = find_evaluate_without_when_other(source_lines)
             if viols:
                 counts[rule.severity] += len(viols)
                 samples: List[str] = [f"EVALUATE without WHEN OTHER count={len(viols)}"]
@@ -173,10 +186,10 @@ def apply_rules(
         # END_CLAUSE_REQUIRED (2.23)
         # --------------------
         if rule.rtype == "END_CLAUSE_REQUIRED":
-            if not cob_lines_with_linenos:
+            if not source_lines:
                 continue
 
-            missing = find_missing_end_clauses(cob_lines_with_linenos)
+            missing = find_missing_end_clauses(source_lines)
             if missing:
                 counts[rule.severity] += len(missing)
                 samples: List[str] = [f"Missing END clause count={len(missing)}"]
@@ -190,10 +203,10 @@ def apply_rules(
         # A_MAIN_STATEMENTS_ONLY (8.4)
         # --------------------
         if rule.rtype == "A_MAIN_STATEMENTS_ONLY":
-            if not cob_lines_with_linenos:
+            if not source_lines:
                 continue
 
-            viols = find_a_main_statement_violations(cob_lines_with_linenos)
+            viols = find_a_main_statement_violations(source_lines)
             if viols:
                 counts[rule.severity] += len(viols)
                 samples: List[str] = [f"A-MAIN disallowed statements count={len(viols)}"]
@@ -207,11 +220,11 @@ def apply_rules(
         # NO_RECURSIVE_CALLS (2.20)
         # --------------------
         if rule.rtype == "NO_RECURSIVE_CALLS":
-            if not cob_lines_with_linenos:
+            if not source_lines:
                 continue
 
-            perf_viols = find_recursive_perform_calls(cob_lines_with_linenos)
-            call_viols = find_recursive_call_violations(cob_lines_with_linenos)
+            perf_viols = find_recursive_perform_calls(source_lines)
+            call_viols = find_recursive_call_violations(source_lines)
             total = len(perf_viols) + len(call_viols)
 
             if total:
@@ -230,10 +243,10 @@ def apply_rules(
         # FORBIDDEN_LONG_NUMBERS (100)
         # --------------------
         if rule.rtype == "FORBIDDEN_LONG_NUMBERS":
-            if not cob_lines_with_linenos:
+            if not source_lines:
                 continue
 
-            viols = find_long_numeric_literals(cob_lines_with_linenos, min_len=8)
+            viols = find_long_numeric_literals(source_lines, min_len=8)
             if viols:
                 counts[rule.severity] += len(viols)
                 samples: List[str] = [f"Hard-coded long numeric strings count={len(viols)}"]
@@ -247,17 +260,13 @@ def apply_rules(
         # MAX_SECTIONS (5.32)
         # --------------------
         if rule.rtype == "MAX_SECTIONS":
-            sec_rx = re.compile(r"^\s*([A-Z0-9][A-Z0-9-]*)\s+SECTION\s*\.", re.IGNORECASE)
+            if not source_lines:
+                continue
+
+            decls = get_section_decls_after_procedure_excluding_declaratives(source_lines)
             seen = []
             seen_set = set()
-
-            for ln in lines:
-                m = sec_rx.search(ln)
-                if not m:
-                    continue
-                nm = (m.group(1) or "").upper()
-                if nm in ("WORKING-STORAGE", "LINKAGE"):
-                    continue
+            for nm, _lnno in decls:
                 if nm not in seen_set:
                     seen_set.add(nm)
                     seen.append(nm)
@@ -272,17 +281,15 @@ def apply_rules(
                     samples.append(f"SECTION: {n}")
 
                 src_locs: List[int] = []
-                if cob_lines_with_linenos:
-                    decls = get_section_decls_from_source(cob_lines_with_linenos)
-                    uniq_order: List[Tuple[str, int]] = []
-                    uniq_set = set()
-                    for nm, lnno in decls:
-                        if nm not in uniq_set:
-                            uniq_set.add(nm)
-                            uniq_order.append((nm, lnno))
-                    idx = rule.max_value
-                    if idx < len(uniq_order):
-                        src_locs = [uniq_order[idx][1]]
+                uniq_order: List[Tuple[str, int]] = []
+                uniq_set = set()
+                for nm, lnno in decls:
+                    if nm not in uniq_set:
+                        uniq_set.add(nm)
+                        uniq_order.append((nm, lnno))
+                idx = rule.max_value
+                if idx < len(uniq_order):
+                    src_locs = [uniq_order[idx][1]]
 
                 matches.append(RuleMatch(rule=rule, count=1, sample_lines=samples, src_locations=_map_src_locs(src_locs)))
             continue
@@ -291,17 +298,17 @@ def apply_rules(
         # REQUIRED_SECTIONS (2.22)
         # --------------------
         if rule.rtype == "REQUIRED_SECTIONS":
-            if not cob_lines_with_linenos:
+            if not source_lines:
                 continue
 
-            decls = get_section_decls_from_source(cob_lines_with_linenos)
+            decls = get_section_decls_from_source(source_lines)
             present = {nm for nm, _ in decls}
             required = set((rule.required_list or []))
 
             missing = sorted([x for x in required if x not in present])
             if missing:
                 counts[rule.severity] += 1
-                proc_ln = find_procedure_division_line(cob_lines_with_linenos)
+                proc_ln = find_procedure_division_line(source_lines)
                 samples = [f"Missing SECTION(s): {', '.join(missing)}"]
                 src_locs = [proc_ln]
                 matches.append(RuleMatch(rule=rule, count=1, sample_lines=samples, src_locations=_map_src_locs(src_locs)))
@@ -311,10 +318,10 @@ def apply_rules(
         # REQUIRED_DIVISIONS (3.19)
         # --------------------
         if rule.rtype == "REQUIRED_DIVISIONS":
-            if not cob_lines_with_linenos:
+            if not source_lines:
                 continue
 
-            divs = find_divisions_in_source(cob_lines_with_linenos)
+            divs = find_divisions_in_source(source_lines)
             present = set(divs.keys())
             required = set((rule.required_list or []))
 
@@ -331,24 +338,19 @@ def apply_rules(
         # UNUSED_SECTIONS (5.1)
         # --------------------
         if rule.rtype == "UNUSED_SECTIONS":
-            if not cob_lines_with_linenos:
+            if not source_lines:
                 continue
 
-            decls = get_section_decls_from_source(cob_lines_with_linenos)
+            decls = get_section_decls_after_procedure_excluding_declaratives(source_lines)
             declared = [(nm.upper(), lnno) for nm, lnno in decls]
             declared_names = {nm for nm, _ in declared}
 
             exclude = set((rule.exclude_list or []))
 
-            ref_rx = re.compile(
-                r"\bPERFORM\s+([A-Z0-9][A-Z0-9-]*)\b|\bGO\s+TO\s+([A-Z0-9][A-Z0-9-]*)\b|\bGOTO\s+([A-Z0-9][A-Z0-9-]*)\b",
-                re.IGNORECASE,
-            )
-
             referenced: Dict[str, List[int]] = {}
-            for lnno, txt in cob_lines_with_linenos:
+            for lnno, txt in source_lines:
                 t = re.sub(r"\*>.*$", "", txt)
-                for m in ref_rx.finditer(t):
+                for m in PERFORM_GOTO_REF_RX.finditer(t):
                     target = None
                     if m.group(1):
                         target = m.group(1)
@@ -382,10 +384,10 @@ def apply_rules(
         # GOTO_EXIT_ONLY_SAME_SECTION (8.3 tightened)
         # --------------------
         if rule.rtype == "GOTO_EXIT_ONLY_SAME_SECTION":
-            if not cob_lines_with_linenos:
+            if not source_lines:
                 continue
 
-            viols = find_goto_exit_only_violations(cob_lines_with_linenos)
+            viols = find_goto_exit_only_violations(source_lines)
             if viols:
                 counts[rule.severity] += len(viols)
                 samples: List[str] = [f"GO TO violations count={len(viols)}"]
@@ -416,8 +418,8 @@ def apply_rules(
             counts[rule.severity] += hit
 
             src_locs: List[int] = []
-            if cob_lines_with_linenos is not None:
-                for lnno, txt in cob_lines_with_linenos:
+            if source_lines is not None:
+                for lnno, txt in source_lines:
                     if rx.search(txt):
                         src_locs.append(lnno)
 
@@ -478,7 +480,26 @@ def format_rule_matches(title: str, matches: List[RuleMatch], cob_filename: str)
 
         if m.sample_lines:
             out.append("   Samples:\n")
-            for s in m.sample_lines:
+            sample_lines = m.sample_lines
+            if m.src_locations:
+                mapped: List[str] = []
+                loc_idx = 0
+                for s in m.sample_lines:
+                    if loc_idx < len(m.src_locations):
+                        updated = re.sub(
+                            r"\b(line\s+)\d+\b",
+                            r"\g<1>" + str(m.src_locations[loc_idx]),
+                            s,
+                            count=1,
+                            flags=re.IGNORECASE,
+                        )
+                        if updated != s:
+                            loc_idx += 1
+                        mapped.append(updated)
+                    else:
+                        mapped.append(s)
+                sample_lines = mapped
+            for s in sample_lines:
                 out.append(f"     - {s}\n")
 
         sw = sev_word.get(m.rule.severity, "Info")

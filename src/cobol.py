@@ -1,4 +1,5 @@
 import re
+from dataclasses import dataclass
 from typing import Dict, List, Tuple
 
 
@@ -27,6 +28,83 @@ END_TERMINATORS_RX = re.compile(
     re.IGNORECASE,
 )
 
+NAME_TOKEN = r"[A-Z0-9][A-Z0-9_-]*"
+SECTION_DECL_RX = re.compile(rf"^\s*({NAME_TOKEN})\s+SECTION\s*\.", re.IGNORECASE)
+PARAGRAPH_LABEL_RX = re.compile(rf"^\s*({NAME_TOKEN})\s*\.(?:\s+.*)?$", re.IGNORECASE)
+PERFORM_GOTO_REF_RX = re.compile(
+    rf"\bPERFORM\s+({NAME_TOKEN})\b|\bGO\s+TO\s+({NAME_TOKEN})\b|\bGOTO\s+({NAME_TOKEN})\b",
+    re.IGNORECASE,
+)
+DIVISION_DECL_RX = re.compile(r"^\s*([A-Z0-9-]+)\s+DIVISION\b", re.IGNORECASE)
+COMMAND_TOKEN_RX = re.compile(r"^\s*([A-Z0-9-]+)\b", re.IGNORECASE)
+
+
+@dataclass
+class CobolLine:
+    line_no: int
+    text: str
+    clean: str
+    is_section: bool
+    is_division: bool
+    is_paragraph: bool
+    command: str
+
+
+@dataclass
+class CobolComponents:
+    lines: List[CobolLine]
+
+
+def _clean_line(txt: str) -> str:
+    return re.sub(r"\*>.*$", "", txt).rstrip()
+
+
+def _strip_string_literals(txt: str) -> str:
+    return re.sub(r"\"[^\"]*\"|'[^']*'", " ", txt)
+
+def parse_cobol_components(cob_lines_with_linenos: List[Tuple[int, str]]) -> CobolComponents:
+    lines: List[CobolLine] = []
+    prev_sig_ends_with_dot = False
+    for lnno, txt in cob_lines_with_linenos:
+        clean = _clean_line(txt)
+        if not clean or clean.strip() == "":
+            continue
+
+        is_div = DIVISION_DECL_RX.search(clean) is not None
+        is_sec = SECTION_DECL_RX.search(clean) is not None
+        is_par = False
+        if not is_div and not is_sec:
+            m = PARAGRAPH_LABEL_RX.match(clean)
+            if m:
+                name = (m.group(1) or "").upper()
+                if not is_reserved_paragraph_label(name) and prev_sig_ends_with_dot:
+                    is_par = True
+
+        cmd = ""
+        if not is_div and not is_sec and not is_par:
+            cmd_text = _strip_string_literals(clean)
+            m = COMMAND_TOKEN_RX.search(cmd_text)
+            if m:
+                cmd = (m.group(1) or "").upper()
+
+        lines.append(
+            CobolLine(
+                line_no=lnno,
+                text=txt,
+                clean=clean,
+                is_section=is_sec,
+                is_division=is_div,
+                is_paragraph=is_par,
+                command=cmd,
+            )
+        )
+        prev_sig_ends_with_dot = clean.strip().endswith(".")
+    return CobolComponents(lines=lines)
+
+
+def is_executable_line(cob_line: CobolLine) -> bool:
+    return not (cob_line.is_section or cob_line.is_division or cob_line.is_paragraph)
+
 
 def is_reserved_paragraph_label(name: str) -> bool:
     if not name:
@@ -44,10 +122,10 @@ def get_section_decls_from_source(cob_lines_with_linenos: List[Tuple[int, str]])
     Return section declarations in source order as (SECTION-NAME, line_number),
     excluding WORKING-STORAGE and LINKAGE.
     """
-    sec_rx = re.compile(r"^\s*([A-Z0-9][A-Z0-9-]*)\s+SECTION\s*\.", re.IGNORECASE)
     out: List[Tuple[str, int]] = []
     for lnno, txt in cob_lines_with_linenos:
-        m = sec_rx.search(txt)
+        t = _clean_line(txt)
+        m = SECTION_DECL_RX.search(t)
         if not m:
             continue
         name = (m.group(1) or "").upper()
@@ -57,16 +135,64 @@ def get_section_decls_from_source(cob_lines_with_linenos: List[Tuple[int, str]])
     return out
 
 
+def get_section_decls_after_procedure_excluding_declaratives(
+    cob_lines_with_linenos: List[Tuple[int, str]]
+) -> List[Tuple[str, int]]:
+    """
+    Return section declarations after PROCEDURE DIVISION,
+    excluding any sections inside DECLARATIVES.
+    """
+    proc_rx = re.compile(r"\bPROCEDURE\s+DIVISION\b", re.IGNORECASE)
+    decl_start_rx = re.compile(r"^\s*DECLARATIVES\s*\.", re.IGNORECASE)
+    decl_end_rx = re.compile(r"^\s*END\s+DECLARATIVES\s*\.", re.IGNORECASE)
+
+    in_proc = False
+    in_decl = False
+    out: List[Tuple[str, int]] = []
+
+    for lnno, txt in cob_lines_with_linenos:
+        t = _clean_line(txt)
+        if not t:
+            continue
+
+        if not in_proc and proc_rx.search(t):
+            in_proc = True
+            continue
+
+        if not in_proc:
+            continue
+
+        if decl_start_rx.match(t):
+            in_decl = True
+            continue
+        if decl_end_rx.match(t):
+            in_decl = False
+            continue
+
+        if in_decl:
+            continue
+
+        m = SECTION_DECL_RX.search(t)
+        if not m:
+            continue
+        name = (m.group(1) or "").upper()
+        if name in ("WORKING-STORAGE", "LINKAGE"):
+            continue
+        out.append((name, lnno))
+
+    return out
+
+
 # ---------------------------
 # GO TO rule helpers
 # ---------------------------
 
 def build_section_map(cob_lines_with_linenos: List[Tuple[int, str]]) -> List[Tuple[int, str]]:
     """Return a list of (line_number, SECTION-NAME) for each SECTION declaration (excluding WORKING-STORAGE/LINKAGE)."""
-    sec_rx = re.compile(r"^\s*([A-Z0-9][A-Z0-9-]*)\s+SECTION\s*\.", re.IGNORECASE)
     out: List[Tuple[int, str]] = []
     for lnno, txt in cob_lines_with_linenos:
-        m = sec_rx.search(txt)
+        t = _clean_line(txt)
+        m = SECTION_DECL_RX.search(t)
         if not m:
             continue
         name = (m.group(1) or "").upper()
@@ -98,27 +224,8 @@ def build_paragraph_index(cob_lines_with_linenos: List[Tuple[int, str]]) -> Dict
     """Map PARAGRAPH-NAME -> (SECTION-NAME, decl_line_no)."""
     section_decls = build_section_map(cob_lines_with_linenos)
 
-    # Paragraph label form:
-    #   X-ABC.
-    #   X-ABC. <statement>
-    par_rx = re.compile(r"^\s*([A-Z0-9][A-Z0-9-]*)\s*\.(?:\s+.*)?$", re.IGNORECASE)
-
     idx: Dict[str, Tuple[str, int]] = {}
-    for lnno, txt in cob_lines_with_linenos:
-        t = re.sub(r"\*>.*$", "", txt).rstrip()
-        if not t:
-            continue
-        if re.search(r"\bSECTION\b", t, re.IGNORECASE) or re.search(r"\bDIVISION\b", t, re.IGNORECASE):
-            continue
-
-        m = par_rx.match(t)
-        if not m:
-            continue
-
-        name = (m.group(1) or "").upper()
-        if is_reserved_paragraph_label(name):
-            continue
-
+    for lnno, name in get_paragraph_decls(cob_lines_with_linenos):
         sec = current_section_at_line(section_decls, lnno)
         if name not in idx:
             idx[name] = (sec, lnno)
@@ -126,38 +233,18 @@ def build_paragraph_index(cob_lines_with_linenos: List[Tuple[int, str]]) -> Dict
     return idx
 
 
-def _is_paragraph_label_line(txt: str) -> bool:
-    """Heuristic: paragraph label line looks like 'X-YYY.' and is not a DIVISION/SECTION line."""
-    if re.search(r"\bSECTION\b", txt, re.IGNORECASE):
-        return False
-    if re.search(r"\bDIVISION\b", txt, re.IGNORECASE):
-        return False
-    m = re.match(r"^\s*([A-Z0-9][A-Z0-9-]*)\s*\.(?:\s+.*)?$", txt, re.IGNORECASE)
-    if not m:
-        return False
-    name = (m.group(1) or "").upper()
-    if is_reserved_paragraph_label(name):
-        return False
-    return True
-
-
 def get_paragraph_decls(cob_lines_with_linenos: List[Tuple[int, str]]) -> List[Tuple[int, str]]:
     """Return paragraph declarations as (line_number, paragraph_name)."""
-    par_rx = re.compile(r"^\s*([A-Z0-9][A-Z0-9-]*)\s*\.(?:\s+.*)?$", re.IGNORECASE)
     decls: List[Tuple[int, str]] = []
-    for lnno, txt in cob_lines_with_linenos:
-        t = re.sub(r"\*>.*$", "", txt).rstrip()
-        if not t:
+    components = parse_cobol_components(cob_lines_with_linenos)
+    for line in components.lines:
+        if not line.is_paragraph:
             continue
-        if re.search(r"\bSECTION\b", t, re.IGNORECASE) or re.search(r"\bDIVISION\b", t, re.IGNORECASE):
-            continue
-        m = par_rx.match(t)
+        m = PARAGRAPH_LABEL_RX.match(line.clean)
         if not m:
             continue
         name = (m.group(1) or "").upper()
-        if is_reserved_paragraph_label(name):
-            continue
-        decls.append((lnno, name))
+        decls.append((line.line_no, name))
     return decls
 
 
@@ -182,34 +269,34 @@ def get_paragraph_body_lines(cob_lines_with_linenos: List[Tuple[int, str]], para
     paragraph_name = (paragraph_name or "").upper()
     label_rx = re.compile(r"^\s*" + re.escape(paragraph_name) + r"\s*\.(.*)$", re.IGNORECASE)
 
-    in_para = False
+    decls = get_paragraph_decls(cob_lines_with_linenos)
     decl_ln = 0
+    for lnno, name in decls:
+        if name == paragraph_name:
+            decl_ln = lnno
+            break
+    if decl_ln == 0:
+        return 0, []
+
+    line_map = {lnno: txt for lnno, txt in cob_lines_with_linenos}
+    decl_text = _clean_line(line_map.get(decl_ln, ""))
     body: List[str] = []
 
+    m = label_rx.match(decl_text)
+    if m:
+        rest = (m.group(1) or "").strip()
+        if rest:
+            body.append(rest)
+
+    paragraph_lines = {lnno for lnno, _name in decls}
     for lnno, txt in cob_lines_with_linenos:
-        t = re.sub(r"\*>.*$", "", txt).rstrip()
-
-        if not in_para:
-            m = label_rx.match(t)
-            if not m:
-                continue
-            in_para = True
-            decl_ln = lnno
-            rest = (m.group(1) or "").strip()
-            if rest:
-                body.append(rest)
+        if lnno <= decl_ln:
             continue
-
-        # Stop at next paragraph label or any section/division line
-        if _is_paragraph_label_line(t) or re.search(r"\bSECTION\b", t, re.IGNORECASE) or re.search(r"\bDIVISION\b", t, re.IGNORECASE):
-            break
-
+        t = _clean_line(txt)
         if not t:
             continue
-        if t.startswith("*"):
-            continue
-        if t.strip() == "":
-            continue
+        if lnno in paragraph_lines or re.search(r"\bSECTION\b", t, re.IGNORECASE) or re.search(r"\bDIVISION\b", t, re.IGNORECASE):
+            break
         body.append(t.strip())
 
     return decl_ln, body
@@ -255,7 +342,7 @@ def find_goto_exit_only_violations(cob_lines_with_linenos: List[Tuple[int, str]]
     par_idx = build_paragraph_index(cob_lines_with_linenos)
 
     goto_rx = re.compile(
-        r"\bGO\s+TO\s+([A-Z0-9][A-Z0-9-]*)\b|\bGOTO\s+([A-Z0-9][A-Z0-9-]*)\b",
+        rf"\bGO\s+TO\s+({NAME_TOKEN})\b|\bGOTO\s+({NAME_TOKEN})\b",
         re.IGNORECASE,
     )
     dep_rx = re.compile(r"\bDEPENDING\s+ON\b", re.IGNORECASE)
@@ -339,40 +426,37 @@ def find_missing_end_clauses(cob_lines_with_linenos: List[Tuple[int, str]]) -> L
         re.IGNORECASE,
     )
     inline_hint_rx = re.compile(r"\b(VARYING|UNTIL|TEST|AFTER|BEFORE|WITH)\b", re.IGNORECASE)
-    perform_target_rx = re.compile(r"\bPERFORM\s+([A-Z0-9][A-Z0-9-]*)\b", re.IGNORECASE)
+    perform_target_rx = re.compile(rf"\bPERFORM\s+({NAME_TOKEN})\b", re.IGNORECASE)
 
+    components = parse_cobol_components(cob_lines_with_linenos)
     stack: List[Tuple[str, int]] = []
-    lines = cob_lines_with_linenos
+    lines = components.lines
 
     def _next_significant_line(start_idx: int) -> str:
         for _i in range(start_idx + 1, len(lines)):
-            _txt = re.sub(r"\*>.*$", "", lines[_i][1]).strip()
+            _txt = lines[_i].clean.strip()
             if not _txt:
-                continue
-            if _txt.startswith("*"):
                 continue
             return _txt
         return ""
 
-    next_target_rx = re.compile(r"^\s*([A-Z0-9][A-Z0-9-]*)\b", re.IGNORECASE)
+    next_target_rx = re.compile(rf"^\s*({NAME_TOKEN})\b", re.IGNORECASE)
 
     def _is_standalone_token(line: str, match: re.Match) -> bool:
         start, end = match.start(1), match.end(1)
         prev = line[start - 1] if start > 0 else " "
         nxt = line[end] if end < len(line) else " "
-        if prev.isalnum() or prev == "-":
+        if prev.isalnum() or prev in "-_":
             return False
-        if nxt.isalnum() or nxt == "-":
+        if nxt.isalnum() or nxt in "-_":
             return False
         return True
 
-    for _idx, (lnno, txt) in enumerate(lines):
-        t = re.sub(r"\*>.*$", "", txt)
+    for _idx, line in enumerate(lines):
+        t = _strip_string_literals(line.clean)
         if not t.strip():
             continue
-        if re.search(r"\bSECTION\b", t, re.IGNORECASE) or re.search(r"\bDIVISION\b", t, re.IGNORECASE):
-            continue
-        if _is_paragraph_label_line(t):
+        if not is_executable_line(line):
             continue
 
         for m in token_rx.finditer(t):
@@ -395,12 +479,12 @@ def find_missing_end_clauses(cob_lines_with_linenos: List[Tuple[int, str]]) -> L
                     if nxt_target:
                         continue
                 if not tgt and inline_hint_rx.search(t):
-                    stack.append(("PERFORM", lnno))
+                    stack.append(("PERFORM", line.line_no))
                 elif not tgt:
-                    stack.append(("PERFORM", lnno))
+                    stack.append(("PERFORM", line.line_no))
                 continue
 
-            stack.append((token, lnno))
+            stack.append((token, line.line_no))
 
     return [(lnno, kind) for kind, lnno in stack]
 
@@ -421,30 +505,28 @@ def find_a_main_statement_violations(cob_lines_with_linenos: List[Tuple[int, str
         "ELSE",
         "WHEN",
     }
-    token_rx = re.compile(r"^\s*([A-Z0-9-]+)\b", re.IGNORECASE)
+    components = parse_cobol_components(cob_lines_with_linenos)
 
     violations: List[Tuple[int, str]] = []
-    for lnno, txt in cob_lines_with_linenos:
-        t = re.sub(r"\*>.*$", "", txt).rstrip()
-        if not t.strip():
+    for line in components.lines:
+        t = line.clean
+        t_cmd = _strip_string_literals(t)
+        if not t_cmd.strip():
             continue
-        if re.search(r"\bSECTION\b", t, re.IGNORECASE) or re.search(r"\bDIVISION\b", t, re.IGNORECASE):
-            continue
-        if _is_paragraph_label_line(t):
+        if not is_executable_line(line):
             continue
 
-        cur_sec = current_section_at_line(section_decls, lnno)
+        cur_sec = current_section_at_line(section_decls, line.line_no)
         if cur_sec != "A-MAIN":
             continue
 
-        m = token_rx.search(t)
-        if not m:
+        token = line.command
+        if not token:
             continue
-        token = (m.group(1) or "").upper()
         if token in allowed_tokens:
             continue
         if token in COBOL_RESERVED_LABELS:
-            violations.append((lnno, t.strip()))
+            violations.append((line.line_no, t.strip()))
 
     return violations
 
@@ -453,20 +535,21 @@ def find_recursive_perform_calls(cob_lines_with_linenos: List[Tuple[int, str]]) 
     """Return list of (line_no, src_paragraph, target_paragraph) where a PERFORM is recursive."""
     par_decls = get_paragraph_decls(cob_lines_with_linenos)
     par_idx = {name: lnno for lnno, name in par_decls}
-    perform_rx = re.compile(r"\bPERFORM\s+([A-Z0-9][A-Z0-9-]*)\b", re.IGNORECASE)
+    perform_rx = re.compile(rf"\bPERFORM\s+({NAME_TOKEN})\b", re.IGNORECASE)
+    components = parse_cobol_components(cob_lines_with_linenos)
 
     edges: List[Tuple[str, str, int]] = []
-    for lnno, txt in cob_lines_with_linenos:
-        t = re.sub(r"\*>.*$", "", txt)
-        if _is_paragraph_label_line(t):
+    for line in components.lines:
+        t = _strip_string_literals(line.clean)
+        if line.is_paragraph:
             continue
-        src = current_paragraph_at_line(par_decls, lnno)
+        src = current_paragraph_at_line(par_decls, line.line_no)
         if not src:
             continue
         for m in perform_rx.finditer(t):
             target = (m.group(1) or "").upper()
             if target in par_idx:
-                edges.append((src, target, lnno))
+                edges.append((src, target, line.line_no))
 
     graph: Dict[str, List[str]] = {}
     for src, dst, _lnno in edges:
@@ -507,15 +590,16 @@ def find_recursive_call_violations(cob_lines_with_linenos: List[Tuple[int, str]]
     if not prog_id:
         return []
 
-    call_lit_rx = re.compile(r"\bCALL\s+['\"]([A-Z0-9][A-Z0-9-]*)['\"]", re.IGNORECASE)
+    call_lit_rx = re.compile(rf"\bCALL\s+['\"]({NAME_TOKEN})['\"]", re.IGNORECASE)
     viols: List[Tuple[int, str]] = []
+    components = parse_cobol_components(cob_lines_with_linenos)
 
-    for lnno, txt in cob_lines_with_linenos:
-        t = re.sub(r"\*>.*$", "", txt)
+    for line in components.lines:
+        t = line.clean
         for m in call_lit_rx.finditer(t):
             target = (m.group(1) or "").upper()
             if normalize_name_for_compare(target) == normalize_name_for_compare(prog_id):
-                viols.append((lnno, target))
+                viols.append((line.line_no, target))
 
     return viols
 
@@ -542,31 +626,13 @@ def find_long_numeric_literals(cob_lines_with_linenos: List[Tuple[int, str]], mi
 def build_paragraph_occurrences(cob_lines_with_linenos: List[Tuple[int, str]]) -> Dict[str, List[int]]:
     """Return paragraph name -> list of declaration line numbers (all occurrences)."""
     section_decls = build_section_map(cob_lines_with_linenos)
-    par_rx = re.compile(r"^\s*([A-Z0-9][A-Z0-9-]*)\s*\.(?:\s+.*)?$", re.IGNORECASE)
-
     occ: Dict[str, List[int]] = {}
-    for lnno, txt in cob_lines_with_linenos:
-        t = re.sub(r"\*>.*$", "", txt).rstrip()
-        if not t:
+    for lnno, name in get_paragraph_decls(cob_lines_with_linenos):
+        # Reduce false positives: in our conventions paragraph labels include '-' or '_'
+        if "-" not in name and "_" not in name:
             continue
-        if re.search(r"\bSECTION\b", t, re.IGNORECASE) or re.search(r"\bDIVISION\b", t, re.IGNORECASE):
-            continue
-
-        m = par_rx.match(t)
-        if not m:
-            continue
-
-        name = (m.group(1) or "").upper()
-        if is_reserved_paragraph_label(name):
-            continue
-
-        # Reduce false positives: in our conventions paragraph labels include '-'
-        if "-" not in name:
-            continue
-
         if not current_section_at_line(section_decls, lnno):
             continue
-
         occ.setdefault(name, []).append(lnno)
     return occ
 
@@ -599,29 +665,12 @@ def find_duplicate_sections(cob_lines_with_linenos: List[Tuple[int, str]]) -> Li
 def find_paragraph_prefix_mismatches(cob_lines_with_linenos: List[Tuple[int, str]]) -> List[Tuple[int, str, str]]:
     """Return list of (line_no, paragraph_name, section_name) when paragraph prefix != section prefix."""
     section_decls = build_section_map(cob_lines_with_linenos)
-    par_rx = re.compile(r"^\s*([A-Z0-9][A-Z0-9-]*)\s*\.(?:\s+.*)?$", re.IGNORECASE)
-
     mism: List[Tuple[int, str, str]] = []
-    for lnno, txt in cob_lines_with_linenos:
-        t = re.sub(r"\*>.*$", "", txt).rstrip()
-        if not t:
-            continue
-        if re.search(r"\bSECTION\b", t, re.IGNORECASE) or re.search(r"\bDIVISION\b", t, re.IGNORECASE):
-            continue
-
-        m = par_rx.match(t)
-        if not m:
-            continue
-
-        pname = (m.group(1) or "").upper()
-        if is_reserved_paragraph_label(pname):
-            continue
-
+    for lnno, pname in get_paragraph_decls(cob_lines_with_linenos):
         sec = current_section_at_line(section_decls, lnno)
         if not sec:
             continue
-
-        if "-" not in pname:
+        if "-" not in pname and "_" not in pname:
             continue
 
         pfx = section_prefix(pname)
@@ -640,23 +689,38 @@ def find_evaluate_without_when_other(cob_lines_with_linenos: List[Tuple[int, str
 
     stack: List[Dict[str, object]] = []
     viols: List[int] = []
+    components = parse_cobol_components(cob_lines_with_linenos)
 
-    for lnno, txt in cob_lines_with_linenos:
-        t = re.sub(r"\*>.*$", "", txt)
+    def _is_standalone_keyword(line_txt: str, match: re.Match) -> bool:
+        start, end = match.start(0), match.end(0)
+        prev = line_txt[start - 1] if start > 0 else " "
+        nxt = line_txt[end] if end < len(line_txt) else " "
+        if prev.isalnum() or prev in "-_":
+            return False
+        if nxt.isalnum() or nxt in "-_":
+            return False
+        return True
+
+    for line in components.lines:
+        t = _strip_string_literals(line.clean)
         if not t.strip():
+            continue
+        if not is_executable_line(line):
             continue
 
         # Start of EVALUATE (not END-EVALUATE)
-        if eval_rx.search(t) and not end_eval_rx.search(t):
-            stack.append({"start_ln": lnno, "has_when_other": False})
+        eval_m = eval_rx.search(t)
+        end_eval_m = end_eval_rx.search(t)
+        if eval_m and _is_standalone_keyword(t, eval_m) and not (end_eval_m and _is_standalone_keyword(t, end_eval_m)):
+            stack.append({"start_ln": line.line_no, "has_when_other": False})
 
         if stack and when_other_rx.search(t):
             stack[-1]["has_when_other"] = True
 
-        if end_eval_rx.search(t) and stack:
+        if end_eval_m and _is_standalone_keyword(t, end_eval_m) and stack:
             frame = stack.pop()
             if not frame.get("has_when_other", False):
-                viols.append(int(frame.get("start_ln", lnno)))
+                viols.append(int(frame.get("start_ln", line.line_no)))
 
     # Unclosed evaluates -> still report
     while stack:
@@ -687,3 +751,14 @@ def find_divisions_in_source(cob_lines_with_linenos: List[Tuple[int, str]]) -> D
 def find_procedure_division_line(cob_lines_with_linenos: List[Tuple[int, str]]) -> int:
     divs = find_divisions_in_source(cob_lines_with_linenos)
     return divs.get("PROCEDURE", 1)
+
+
+def filter_to_procedure_division(cob_lines_with_linenos: List[Tuple[int, str]]) -> List[Tuple[int, str]]:
+    """
+    Return lines at or after the PROCEDURE DIVISION declaration.
+    If PROCEDURE DIVISION is not found, returns the original list.
+    """
+    proc_ln = find_procedure_division_line(cob_lines_with_linenos)
+    if not proc_ln:
+        return cob_lines_with_linenos
+    return [(lnno, txt) for lnno, txt in cob_lines_with_linenos if lnno >= proc_ln]
