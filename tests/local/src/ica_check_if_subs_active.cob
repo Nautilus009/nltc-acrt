@@ -46,6 +46,7 @@ PROGRAM-ID. ICA_CHECK_IF_SUBS_ACTIVE.
 *#-----------------------------------------------------------------------------
 ENVIRONMENT DIVISION.
 *#-----------------------------------------------------------------------------
+FILE SECTION.
 
 *#-----------------------------------------------------------------------------
 DATA DIVISION.
@@ -162,7 +163,7 @@ COPY "ICD_CDD_WKSP:ICD_COT_081_PRD_CATLOG_DBW"
    03 Lz_SW_MERCHANT              PIC 9     VALUE 0.
       88 Lz_MERCHANT                        VALUE 1.
 
-01 OREN PIC X(20) VALUE "00000000000000804347".
+01 OREN PIC X(20) VALUE "00000000000100804347".
 
 *#-----------------------------------------------------------------------------
 LINKAGE SECTION.
@@ -352,7 +353,7 @@ C100-00.
 
     SET Lz_START_CURSOR TO TRUE.
 
-    PERFORM C120-READ-CURSOR-081 UNTIL Lz_END_CURSOR.
+    PERFORM C120-READ_CURSOR-081 UNTIL Lz_END_CURSOR.
 
 * close cursor 081
     MOVE Lz_CLOSE_CURSOR_RDB
@@ -382,11 +383,13 @@ C110-00.
 C110-EXIT.
     EXIT.
 *-----------------------------------------------------------------------------
-C120-READ-CURSOR-081                SECTION.
+C120-READ_CURSOR-081                SECTION.
 *-----------------------------------------------------------------------------
 C120-00.
 
     CALL 'ICD_COT_081_PRD_CATLOG_DBA' USING ICD_COT_081_PRD_CATLOG_DBW.
+
+    GO TO C120-EXIT
 
     EVALUATE DPz_STATUS             IN ICD_COT_081_PRD_CATLOG_DBW
 
@@ -395,7 +398,7 @@ C120-00.
              SET Lz_END_CURSOR TO TRUE
         WHEN SPz_MSG_NORMAL
              PERFORM C125-READ-080
-             
+
         WHEN OTHER
              MOVE ICA_W_0742
                TO SPz_ACW_PROC_AUX_STATUS IN UTL_CONTROL_ACW
