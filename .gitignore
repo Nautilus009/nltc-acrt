@@ -16,3 +16,4 @@ tmp/
 
 # Test fixtures
 tests/local/src/.freebidi/
+tests/local/target/obj/
