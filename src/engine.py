@@ -62,6 +62,7 @@ def apply_rules(
     context: str,
     expected_prog_base: str,
     cob_lines_with_linenos: List[Tuple[int, str]] = None,
+    source_cob_lines_with_linenos: List[Tuple[int, str]] = None,
     line_map: List[int] = None,
     max_samples_per_rule: int = 5,
 ) -> Tuple[Dict[str, int], List[RuleMatch]]:
@@ -72,22 +73,26 @@ def apply_rules(
     counts = {"E": 0, "W": 0, "I": 0}
     matches: List[RuleMatch] = []
 
-    def _map_src_locs(src_locs: List[int]) -> List[int]:
-        if not line_map:
-            return sorted(set([ln for ln in src_locs if ln]))
+    def _map_src_locs(src_locs: List[int], use_line_map: bool) -> List[int]:
+        if not use_line_map or not line_map:
+            return [ln for ln in src_locs]
         mapped: List[int] = []
         for ln in src_locs:
             if not ln:
+                mapped.append(0)
                 continue
             if 1 <= ln <= len(line_map):
                 cob_ln = line_map[ln - 1]
-                if cob_ln:
-                    mapped.append(cob_ln)
-        return sorted(set(mapped))
+                mapped.append(cob_ln or 0)
+            else:
+                mapped.append(0)
+        return mapped
 
     proc_only_lines = None
-    if cob_lines_with_linenos:
-        proc_only_lines = filter_to_procedure_division(cob_lines_with_linenos)
+    source_base = source_cob_lines_with_linenos if source_cob_lines_with_linenos is not None else cob_lines_with_linenos
+    use_line_map_for_regex = source_cob_lines_with_linenos is None and line_map is not None
+    if source_base:
+        proc_only_lines = filter_to_procedure_division(source_base)
 
     for rule in rules:
         if not rule.run:
@@ -96,8 +101,8 @@ def apply_rules(
             continue
 
         use_proc_only = rule.rtype not in ("REQUIRED_DIVISIONS", "PROGRAM_ID_MATCH", "FORBIDDEN_LONG_NUMBERS")
-        source_lines = cob_lines_with_linenos
-        if cob_lines_with_linenos and use_proc_only and proc_only_lines is not None:
+        source_lines = source_base
+        if source_base and use_proc_only and proc_only_lines is not None:
             source_lines = proc_only_lines
 
         # --------------------
@@ -114,12 +119,12 @@ def apply_rules(
             if not prog_id:
                 counts[rule.severity] += 1
                 samples = ["PROGRAM-ID not found"]
-                matches.append(RuleMatch(rule=rule, count=1, sample_lines=samples, src_locations=_map_src_locs([1])))
+                matches.append(RuleMatch(rule=rule, count=1, sample_lines=samples, src_locations=_map_src_locs([1], False)))
             elif expected_norm != found_norm:
                 counts[rule.severity] += 1
                 samples = [f"PROGRAM-ID={prog_id} (expected {expected_prog_base})"]
                 src_locs = [prog_ln] if prog_ln else [1]
-                matches.append(RuleMatch(rule=rule, count=1, sample_lines=samples, src_locations=_map_src_locs(src_locs)))
+                matches.append(RuleMatch(rule=rule, count=1, sample_lines=samples, src_locations=_map_src_locs(src_locs, False)))
             continue
 
         # --------------------
@@ -146,7 +151,7 @@ def apply_rules(
                 for lnno, kind, name in combined[:max_samples_per_rule]:
                     samples.append(f"Duplicate {kind}: {name} at line {lnno}")
                 src_locs = [lnno for lnno, _ in sec_dups] + [lnno for lnno, _ in para_dups]
-                matches.append(RuleMatch(rule=rule, count=total, sample_lines=samples, src_locations=_map_src_locs(src_locs)))
+                matches.append(RuleMatch(rule=rule, count=total, sample_lines=samples, src_locations=_map_src_locs(src_locs, False)))
             continue
 
         # --------------------
@@ -163,7 +168,7 @@ def apply_rules(
                 for lnno, pname, sec in mism[:max_samples_per_rule]:
                     samples.append(f"{pname} (line {lnno}) is in SECTION {sec}")
                 src_locs = [lnno for lnno, _, _ in mism]
-                matches.append(RuleMatch(rule=rule, count=len(mism), sample_lines=samples, src_locations=_map_src_locs(src_locs)))
+                matches.append(RuleMatch(rule=rule, count=len(mism), sample_lines=samples, src_locations=_map_src_locs(src_locs, False)))
             continue
 
         # --------------------
@@ -179,7 +184,7 @@ def apply_rules(
                 samples: List[str] = [f"EVALUATE without WHEN OTHER count={len(viols)}"]
                 for lnno in viols[:max_samples_per_rule]:
                     samples.append(f"EVALUATE at line {lnno} missing WHEN OTHER")
-                matches.append(RuleMatch(rule=rule, count=len(viols), sample_lines=samples, src_locations=_map_src_locs(viols)))
+                matches.append(RuleMatch(rule=rule, count=len(viols), sample_lines=samples, src_locations=_map_src_locs(viols, False)))
             continue
 
         # --------------------
@@ -196,7 +201,7 @@ def apply_rules(
                 for lnno, kind in missing[:max_samples_per_rule]:
                     samples.append(f"{kind} started at line {lnno} missing END-{kind}")
                 src_locs = [lnno for lnno, _ in missing]
-                matches.append(RuleMatch(rule=rule, count=len(missing), sample_lines=samples, src_locations=_map_src_locs(src_locs)))
+                matches.append(RuleMatch(rule=rule, count=len(missing), sample_lines=samples, src_locations=_map_src_locs(src_locs, False)))
             continue
 
         # --------------------
@@ -213,7 +218,7 @@ def apply_rules(
                 for lnno, text in viols[:max_samples_per_rule]:
                     samples.append(f"Line {lnno}: {text}")
                 src_locs = [lnno for lnno, _ in viols]
-                matches.append(RuleMatch(rule=rule, count=len(viols), sample_lines=samples, src_locations=_map_src_locs(src_locs)))
+                matches.append(RuleMatch(rule=rule, count=len(viols), sample_lines=samples, src_locations=_map_src_locs(src_locs, False)))
             continue
 
         # --------------------
@@ -236,7 +241,7 @@ def apply_rules(
                     for lnno, target in call_viols[: max_samples_per_rule - (len(samples) - 1)]:
                         samples.append(f"CALL recursion: {target} at line {lnno}")
                 src_locs = [lnno for lnno, _, _ in perf_viols] + [lnno for lnno, _ in call_viols]
-                matches.append(RuleMatch(rule=rule, count=total, sample_lines=samples, src_locations=_map_src_locs(src_locs)))
+                matches.append(RuleMatch(rule=rule, count=total, sample_lines=samples, src_locations=_map_src_locs(src_locs, False)))
             continue
 
         # --------------------
@@ -253,7 +258,7 @@ def apply_rules(
                 for lnno, lit in viols[:max_samples_per_rule]:
                     samples.append(f"Line {lnno}: \"{lit}\"")
                 src_locs = [lnno for lnno, _ in viols]
-                matches.append(RuleMatch(rule=rule, count=len(viols), sample_lines=samples, src_locations=_map_src_locs(src_locs)))
+                matches.append(RuleMatch(rule=rule, count=len(viols), sample_lines=samples, src_locations=_map_src_locs(src_locs, False)))
             continue
 
         # --------------------
@@ -291,7 +296,7 @@ def apply_rules(
                 if idx < len(uniq_order):
                     src_locs = [uniq_order[idx][1]]
 
-                matches.append(RuleMatch(rule=rule, count=1, sample_lines=samples, src_locations=_map_src_locs(src_locs)))
+                matches.append(RuleMatch(rule=rule, count=1, sample_lines=samples, src_locations=_map_src_locs(src_locs, False)))
             continue
 
         # --------------------
@@ -311,7 +316,7 @@ def apply_rules(
                 proc_ln = find_procedure_division_line(source_lines)
                 samples = [f"Missing SECTION(s): {', '.join(missing)}"]
                 src_locs = [proc_ln]
-                matches.append(RuleMatch(rule=rule, count=1, sample_lines=samples, src_locations=_map_src_locs(src_locs)))
+                matches.append(RuleMatch(rule=rule, count=1, sample_lines=samples, src_locations=_map_src_locs(src_locs, False)))
             continue
 
         # --------------------
@@ -331,7 +336,7 @@ def apply_rules(
                 anchor = divs.get("IDENTIFICATION", 1)
                 samples = [f"Missing DIVISION(s): {', '.join(missing)}"]
                 src_locs = [anchor]
-                matches.append(RuleMatch(rule=rule, count=1, sample_lines=samples, src_locations=_map_src_locs(src_locs)))
+                matches.append(RuleMatch(rule=rule, count=1, sample_lines=samples, src_locations=_map_src_locs(src_locs, False)))
             continue
 
         # --------------------
@@ -377,7 +382,7 @@ def apply_rules(
                 for nm, decl_ln in unused[:max_samples_per_rule]:
                     samples.append(f"{nm} (declared at line {decl_ln})")
                 src_locs = [decl_ln for _, decl_ln in unused]
-                matches.append(RuleMatch(rule=rule, count=len(unused), sample_lines=samples, src_locations=_map_src_locs(src_locs)))
+                matches.append(RuleMatch(rule=rule, count=len(unused), sample_lines=samples, src_locations=_map_src_locs(src_locs, False)))
             continue
 
         # --------------------
@@ -394,7 +399,7 @@ def apply_rules(
                 for v_ln, target, reason in viols[:max_samples_per_rule]:
                     samples.append(f"GO TO {target} at line {v_ln}: {reason}")
                 src_locs = [v_ln for v_ln, _, _ in viols]
-                matches.append(RuleMatch(rule=rule, count=len(viols), sample_lines=samples, src_locations=_map_src_locs(src_locs)))
+                matches.append(RuleMatch(rule=rule, count=len(viols), sample_lines=samples, src_locations=_map_src_locs(src_locs, False)))
             continue
 
         # --------------------
@@ -428,7 +433,7 @@ def apply_rules(
                     rule=rule,
                     count=hit,
                     sample_lines=samples,
-                    src_locations=_map_src_locs(src_locs),
+                    src_locations=_map_src_locs(src_locs, use_line_map_for_regex),
                 )
             )
 
@@ -505,7 +510,10 @@ def format_rule_matches(title: str, matches: List[RuleMatch], cob_filename: str)
         sw = sev_word.get(m.rule.severity, "Info")
         if m.src_locations:
             for lnno in m.src_locations:
-                out.append(f"   {cob_filename}:{lnno}: {sw}: {acrt_tag()} Rule {m.rule.number}: {m.rule.description}\n")
+                if lnno:
+                    out.append(f"   {cob_filename}:{lnno}: {sw}: {acrt_tag()} Rule {m.rule.number}: {m.rule.description}\n")
+                else:
+                    out.append(f"   {cob_filename}:?: {sw}: {acrt_tag()} Rule {m.rule.number}: {m.rule.description} (line not found)\n")
         else:
             out.append(f"   {cob_filename}:?: {sw}: {acrt_tag()} Rule {m.rule.number}: {m.rule.description} (line not found)\n")
 
@@ -527,7 +535,10 @@ def _diagnostic_lines(
         sw = sev_word.get(m.rule.severity, "Info")
         if m.src_locations:
             for lnno in m.src_locations:
-                out.append(f"   {cob_filename}:{lnno}: {sw}: {acrt_tag()} Rule {m.rule.number}: {m.rule.description}")
+                if lnno:
+                    out.append(f"   {cob_filename}:{lnno}: {sw}: {acrt_tag()} Rule {m.rule.number}: {m.rule.description}")
+                else:
+                    out.append(f"   {cob_filename}:?: {sw}: {acrt_tag()} Rule {m.rule.number}: {m.rule.description} (line not found)")
         else:
             out.append(f"   {cob_filename}:?: {sw}: {acrt_tag()} Rule {m.rule.number}: {m.rule.description} (line not found)")
     return out
@@ -549,10 +560,20 @@ def diagnostics_diff_only(
     severities: Tuple[str, ...] = ("E", "W", "I"),
 ) -> str:
     """
-    Spool output (stdout): show ONLY diagnostics that appear in LOCAL but not in MASTER.
+    Spool output (stdout): show ONLY diagnostics for rule numbers present in LOCAL but not in MASTER.
     Includes DIFF-only rules as part of LOCAL.
     """
-    local_lines = _diagnostic_lines(local_matches + diff_matches, cob_filename, severities)
-    master_lines = _diagnostic_lines(master_matches, cob_filename, severities)
-    out = sorted(set(local_lines) - set(master_lines))
+    local_by_rule: Dict[str, List[RuleMatch]] = {}
+    for m in local_matches + diff_matches:
+        if m.rule.severity not in severities:
+            continue
+        local_by_rule.setdefault(m.rule.number, []).append(m)
+
+    master_rule_nums = {m.rule.number for m in master_matches if m.rule.severity in severities}
+    diff_rule_nums = sorted([r for r in local_by_rule.keys() if r not in master_rule_nums])
+
+    out: List[str] = []
+    for rule_num in diff_rule_nums:
+        for m in local_by_rule.get(rule_num, []):
+            out.extend(_diagnostic_lines([m], cob_filename, severities))
     return "\n".join(out) + ("\n" if out else "")

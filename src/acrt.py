@@ -94,6 +94,7 @@ def main() -> None:
         context="LOCAL",
         expected_prog_base=expected_prog_base,
         cob_lines_with_linenos=local_lines_with_linenos,
+        source_cob_lines_with_linenos=cob_lines_with_linenos,
         line_map=local_line_map,
     )
     diff_counts, diff_matches = apply_rules(
@@ -201,7 +202,7 @@ def main() -> None:
     report = "".join(report_lines)
 
     # Spool output (stdout): ONLY diagnostics that appear in LOCAL but not in MASTER
-    diag = diagnostics_diff_only(local_matches, master_matches, diff_matches, base, severities=("E", "W", "I"))
+    diag = diagnostics_diff_only(local_matches, master_matches, diff_matches, base, severities=("E",))
     if diag:
         print(diag, end="")
 

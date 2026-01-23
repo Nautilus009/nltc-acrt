@@ -1,0 +1,12 @@
++ python3 acrt.py src/ica_check_if_subs_active.cob
+   ica_check_if_subs_active.cob:166: Error: ACRT v0.3.3 Rule 10.0: Do not hard-code long numeric strings (8+ digits)
+   ica_check_if_subs_active.cob:177: Error: ACRT v0.3.3 Rule 2.22: The following sections are mandatory: A-MAIN, B-INIT, Z-FINISH
+   ica_check_if_subs_active.cob:757: Error: ACRT v0.3.3 Rule 2.28: Do not use STOP RUN
+   ica_check_if_subs_active.cob:199: Error: ACRT v0.3.3 Rule 3.22: SECTION and paragraph names must be unique in the program
+   ica_check_if_subs_active.cob:296: Error: ACRT v0.3.3 Rule 3.23: A paragraph name must have the same prefix as the section containing it
+   ica_check_if_subs_active.cob:755: Error: ACRT v0.3.3 Rule 8.3: GO TO is permitted only to the EXIT paragraph of the same SECTION (and the EXIT paragraph must contain only EXIT)
++ python3 acrt.py src/demo_ica_chk_cob_regression.cob
+   demo_ica_chk_cob_regression.cob:127: Error: ACRT v0.3.3 Rule 10.0: Do not hard-code long numeric strings (8+ digits)
+   demo_ica_chk_cob_regression.cob:665: Error: ACRT v0.3.3 Rule 2.23: Add END-IF/END-EVALUATE/END-READ/END-PERFORM (inline PERFORM only)
+   demo_ica_chk_cob_regression.cob:11: Error: ACRT v0.3.3 Rule 6.26: PROGRAM-ID has to be identical to the file name (without the extension)
+   demo_ica_chk_cob_regression.cob:716: Error: ACRT v0.3.3 Rule 8.1: Use WHEN OTHER for every EVALUATE
