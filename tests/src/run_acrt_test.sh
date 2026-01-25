@@ -25,19 +25,22 @@ cat "$LOG_FILE"
 diff -sb "$LOG_FILE" "$EXP_FILE"
 TMP_A=$(mktemp)
 TMP_B=$(mktemp)
-sed -E -e 's/on [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/on <timestamp>/' \
-       -e 's/at: [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/at: <timestamp>/' \
-  "$BUILD_LOCAL_PATH_BB/target/obj/ica_check_if_subs_active.acrt" > "$TMP_A"
-sed -E -e 's/on [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/on <timestamp>/' \
-       -e 's/at: [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/at: <timestamp>/' \
-  "$LOG_DIR/ica_check_if_subs_active.acrt" > "$TMP_B"
-diff -sb "$TMP_A" "$TMP_B"
+normalize_acrt() {
+  sed -E -e 's/on [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/on <timestamp>/' \
+         -e 's/at: [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/at: <timestamp>/' \
+         "$1" > "$2"
+}
 
-sed -E -e 's/on [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/on <timestamp>/' \
-       -e 's/at: [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/at: <timestamp>/' \
-  "$BUILD_LOCAL_PATH_BB/target/obj/demo_ica_chk_cob_regression.acrt" > "$TMP_A"
-sed -E -e 's/on [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/on <timestamp>/' \
-       -e 's/at: [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/at: <timestamp>/' \
-  "$LOG_DIR/demo_ica_chk_cob_regression.acrt" > "$TMP_B"
-diff -sb "$TMP_A" "$TMP_B"
+compare_acrt() {
+  normalize_acrt "$1" "$TMP_A"
+  normalize_acrt "$2" "$TMP_B"
+  if cmp -s "$TMP_A" "$TMP_B"; then
+    echo "Files $1 and $2 are identical"
+  else
+    diff -u "$TMP_A" "$TMP_B"
+  fi
+}
+
+compare_acrt "$BUILD_LOCAL_PATH_BB/target/obj/ica_check_if_subs_active.acrt" "$LOG_DIR/ica_check_if_subs_active.acrt"
+compare_acrt "$BUILD_LOCAL_PATH_BB/target/obj/demo_ica_chk_cob_regression.acrt" "$LOG_DIR/demo_ica_chk_cob_regression.acrt"
 rm -f "$TMP_A" "$TMP_B"
