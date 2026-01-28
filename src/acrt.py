@@ -60,7 +60,7 @@ def main(argv=None):
         sev = SEVERITY_LABELS.get(finding.severity, finding.severity)
         line = "?" if finding.line is None else finding.line
         print(
-            f"{element_name}:{line}: {sev}: ACRT v{__version__} Rule {finding.rule_number}: {finding.description}"
+            f"   {element_name}:{line}: {sev}: ACRT v{__version__} Rule {finding.rule_number}: {finding.description}"
         )
 
     return result.exit_code

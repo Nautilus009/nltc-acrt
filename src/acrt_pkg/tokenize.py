@@ -208,9 +208,14 @@ def tokenize(cleaned_listing, element_name):
         node.keywords |= _keyword_set(line)
         node.end_line = safe_line_no(line_no)
 
+    program_id = None
     for line, line_no, col1 in zip(cleaned_listing.lines, cleaned_listing.line_map, cleaned_listing.col1):
         if line_no is not None:
             last_real_line_no = line_no
+        if program_id is None:
+            program_id = extract_program_id(line)
+            if program_id:
+                root.name = program_id
         if pending_value_var and current_div and current_div.name == "DATA":
             literal = line.strip()
             if literal.endswith("."):
@@ -225,6 +230,9 @@ def tokenize(cleaned_listing, element_name):
         div_match = DIVISION_RE.match(line)
         if div_match:
             close_open_commands("DIVISION", line_no)
+            if current_sec:
+                current_sec.end_line = prev_line_no(line_no)
+                current_sec = None
             if current_para:
                 current_para.end_line = prev_line_no(line_no)
                 current_para = None
@@ -247,6 +255,8 @@ def tokenize(cleaned_listing, element_name):
             sec_like_match = SECTION_LIKE_RE.match(line)
         if sec_match or sec_like_match:
             sec_name = sec_match.group(1) if sec_match else sec_like_match.group(1)
+            if current_sec:
+                current_sec.end_line = prev_line_no(line_no)
             current_sec = Node(kind="SECTION", name=sec_name, start_line=safe_line_no(line_no), end_line=safe_line_no(line_no))
             current_sec.division = current_div.name if current_div else None
             current_sec.section = sec_name
@@ -274,6 +284,7 @@ def tokenize(cleaned_listing, element_name):
         if current_div and current_div.name == "DATA":
             data_match = DATA_ITEM_RE.match(line)
             if data_match:
+                level = data_match.group(1)
                 var_name = data_match.group(2)
                 if var_name != "FILLER":
                     var_line = line_no if line_no is not None else None
@@ -282,6 +293,7 @@ def tokenize(cleaned_listing, element_name):
                     var_node.section = current_sec.name if current_sec else None
                     var_node.paragraph = current_para.name if current_para else None
                     value, explicit = _infer_var_value(line)
+                    var_node.meta["level"] = level
                     var_node.meta["value"] = value
                     var_node.meta["value_explicit"] = explicit
                     if not explicit and VALUE_ONLY_RE.search(line):
@@ -443,6 +455,8 @@ def tokenize(cleaned_listing, element_name):
     close_open_commands("EOF", last_real_line_no)
     if current_para:
         current_para.end_line = last_real_line_no
+    if current_sec:
+        current_sec.end_line = last_real_line_no
 
     stats = {
         "divisions": len(by_kind["DIVISION"]),
@@ -489,6 +503,8 @@ def format_tree_verbose(context):
         parts = [node.kind]
         if node.name:
             parts.append(f"name={node.name}")
+        if node.kind == "VARIABLE" and node.meta.get("level"):
+            parts.append(f"level={node.meta.get('level')}")
         path = node.path()
         if path:
             parts.append(f"path={path}")
@@ -591,3 +607,4 @@ def _infer_var_value(line):
         if re.search(r"[9SV]", pic_text):
             return "0", False
     return "", False
+from .util import extract_program_id

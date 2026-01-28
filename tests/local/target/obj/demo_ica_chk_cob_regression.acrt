@@ -1,4 +1,4 @@
-Getting current ACRT v0.4.0 status for demo_ica_chk_cob_regression.cob on 2026-01-27 20:24:01 (user: orennissan):
+Getting current ACRT v0.4.0 status for demo_ica_chk_cob_regression.cob on 2026-01-27 20:46:57 (user: orennissan):
 On Master build directory : #Errors 0 #Warnings 0 #Infos 0
 On Private build directory : #Errors 12 #Warnings 0 #Infos 0
 The difference : Errors 12 Warnings 0 Infos 0
@@ -58,4 +58,4 @@ Thresholds: Errors>0 Warnings>50 Infos>100
 Current abs diff: Errors=12 Warnings=0 Infos=0
 
 RESULT: ERROR - the following demo_ica_chk_cob_regression.cob program does not meet ACRT v0.4.0 standards.
-Report generated at: 2026-01-27 20:24:01
+Report generated at: 2026-01-27 20:46:57

@@ -99,7 +99,13 @@ def run_acrt(element_path, env, debug=False, debug_tree=False):
         ]
         debug_text = "\n".join(debug_lines) + "\n"
         debug_path = os.path.join(env["BUILD_LOCAL_PATH_BB"], "target", "obj", f"{file_stem}.acrt.debug")
-        atomic_write(debug_path, debug_text)
+        encoding = os.getenv("ACRT_LANG", "iso-8859-8")
+        try:
+            with open(debug_path, "w", encoding=encoding, errors="replace") as f:
+                f.write(debug_text)
+        except LookupError:
+            with open(debug_path, "w", encoding="utf-8", errors="replace") as f:
+                f.write(debug_text)
 
     engine = RuleEngine(rules)
 
