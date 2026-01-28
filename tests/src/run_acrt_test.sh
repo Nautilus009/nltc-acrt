@@ -16,9 +16,9 @@ mkdir -p "$LOG_DIR"
 : > "$LOG_FILE"
 set +e
 echo "+ python3 acrt.py src/ica_check_if_subs_active.cob" >> "$LOG_FILE"
-python3 "$ROOT_DIR/src/acrt.py" "$BUILD_LOCAL_PATH_BB/src/ica_check_if_subs_active.cob" >> "$LOG_FILE"
+python3 "$ROOT_DIR/src/acrt.py" -debug-tree "$BUILD_LOCAL_PATH_BB/src/ica_check_if_subs_active.cob" >> "$LOG_FILE"
 echo "+ python3 acrt.py src/demo_ica_chk_cob_regression.cob" >> "$LOG_FILE"
-python3 "$ROOT_DIR/src/acrt.py" "$BUILD_LOCAL_PATH_BB/src/demo_ica_chk_cob_regression.cob" >> "$LOG_FILE"
+python3 "$ROOT_DIR/src/acrt.py" -debug-tree "$BUILD_LOCAL_PATH_BB/src/demo_ica_chk_cob_regression.cob" >> "$LOG_FILE"
 set -e
 
 cat "$LOG_FILE"

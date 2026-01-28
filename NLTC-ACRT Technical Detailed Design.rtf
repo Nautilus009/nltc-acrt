@@ -1,0 +1,444 @@
+NLTC-ACRT Technical Detailed Design
+
+Project: nltc-acrt ? COBOL Audit POC for COBOL-IT Listing Diff (Python)
+Primary use case: ALM commit gating (block commits if new violations are introduced)
+Secondary use case: post-compile auditing in build pipelines
+
+Key requirements (consolidated):
+	1.	All ACRT rules (all types) execute only on tokenized components (no whole-text rule execution path).
+	2.	Tokenization is mandatory for Master, Local, and Diff, and is performed once per target at the beginning.
+	3.	Each rule runs against its own scope by selecting nodes from the pre-built tokenization indexes.
+	4.	Nested COBOL commands are modeled; END-<command> closes scopes; period . breaks nesting (dot scope).
+	5.	SECTION, PARAGRAPH, and VARIABLE identifiers may include underscores (_) and must be recognized accordingly.
+
+?
+
+1. Purpose
+
+nltc-acrt audits COBOL changes by scanning COBOL-IT compilation listing files (.lis) and comparing:
+	?	Master listing (baseline): $BUILD_ALM_PATH_BB/target/obj/<name>.lis
+	?	Local listing (candidate): $BUILD_LOCAL_PATH_BB/target/obj/<name>.lis
+	?	Local-only diff: (Local ? Master) after cleaning (strip blanks/comments)
+
+Rules are loaded from an external XML file and executed on tokenized components extracted from Master/Local/Diff. Console output is commit-gate friendly: it prints only findings introduced in Local.
+
+A per-element report file is written with full details and overwritten each run.
+
+?
+
+2. Scope
+
+2.1 In scope
+	?	Python CLI (acrt.py)
+	?	External XML rules config ($ACRT_HOME/CONF/ACRT_RULES.XML)
+	?	Listing cleaning + normalization
+	?	Local-only diff computation
+	?	Mandatory single-pass tokenization per target (Master/Local/Diff):
+	?	DIVISION ? SECTION ? PARAGRAPH ? nested COMMAND nodes
+	?	Flat indexes for fast scoped rule execution
+	?	Rules engine supporting multiple rule types (initially REGEX, extensible)
+	?	All rule types execute on tokenized nodes only
+	?	Commit-gate friendly console output
+	?	Per-element report (.acrt) overwritten each run (atomic replace)
+	?	Optional shared history append using fcntl.flock (designed; optional)
+
+2.2 Out of scope
+	?	Full COBOL parser / compiler-grade AST + semantic validation
+	?	Compiling listings
+	?	Cross-file analysis
+
+?
+
+3. External Interfaces
+
+3.1 CLI
+	?	Version:
+	?	python3 acrt.py -version
+	?	Audit:
+	?	python3 acrt.py src/<element>.<cob|pco|inc>
+
+3.2 Environment variables
+
+Required:
+	?	ACRT_HOME
+	?	BUILD_ALM_PATH_BB
+	?	BUILD_LOCAL_PATH_BB
+
+Optional:
+	?	ACRT_EXCLUDE (semicolon-separated patterns)
+
+3.3 Exit codes
+	?	0 pass
+	?	1 fail (threshold exceeded)
+	?	2 usage/config/runtime error
+
+?
+
+4. Inputs and Derived Files
+
+Input: src/<name>.<ext>
+
+Derived listing paths:
+	?	Master: ${BUILD_ALM_PATH_BB}/target/obj/<name>.lis
+	?	Local:  ${BUILD_LOCAL_PATH_BB}/target/obj/<name>.lis
+
+Rules file:
+	?	${ACRT_HOME}/CONF/ACRT_RULES.XML
+
+?
+
+5. Outputs
+
+5.1 Console output (stdout)
+
+Commit-gate friendly: prints only findings introduced in Local.
+
+Format:
+
+<element>:<line>: <Severity>: ACRT <version> Rule <rule-number>: <description>
+
+5.2 Per-element report file (.acrt)
+
+Location:
+	?	${BUILD_LOCAL_PATH_BB}/target/obj/<name>.acrt
+
+Write mode:
+	?	overwrite each run (atomic replace)
+
+Contents:
+	?	run header + inputs
+	?	thresholds
+	?	tokenization summary
+	?	per-rule results for Master/Local/Diff
+	?	severity counts, deltas, decision
+	?	full match list (path, line range, snippet)
+	?	timings (including tokenization time)
+
+?
+
+6. Rules Configuration (ACRT_RULES.XML)
+
+6.1 Thresholds
+
+<Thresholds errors="0" warnings="50" infos="100"/>
+
+6.2 Rule schema (baseline + extensible)
+
+Attributes:
+	?	number, severity (E|W|I), run (Y|N)
+	?	type (e.g., REGEX, COUNT_MAX, REQUIRE, STRUCTURE, ?)
+	?	on_master, on_local, on_diff (Y|N)
+
+Elements:
+	?	<Description>...</Description>
+	?	<Code>...</Code> (type-specific meaning; may be empty)
+
+Example:
+
+<Rule number="2.28" severity="E" run="Y"
+      type="REGEX"
+      on_master="Y" on_local="Y" on_diff="N">
+  <Description>Do not use STOP RUN</Description>
+  <Code>(?:^|[^A-Z0-9_-])STOP\s+RUN(?:[^A-Z0-9_-]|$)</Code>
+</Rule>
+
+6.3 Mandatory tokenized execution contract (ALL types)
+	?	Every rule executes only against tokenized nodes (node text + metadata).
+	?	There is no rule path that runs over raw/whole listing text.
+	?	Tokenization is mandatory; failure to build a component tree for any required target returns exit code 2.
+
+6.4 Scope selection (defaults + future optional attributes)
+
+Defaults if not specified:
+	?	scope="COMMAND"
+	?	where="*" (all nodes at that scope)
+
+Optional future extensions (non-breaking):
+	?	scope="PROGRAM|DIVISION|SECTION|PARAGRAPH|COMMAND"
+	?	where="<path/name pattern>"
+	?	keywords="READ,EXEC"
+	?	type params: max, required, exclude, etc.
+
+?
+
+7. High-Level Architecture
+
+7.1 Runtime pipeline
+	1.	Parse CLI args; validate input element
+	2.	Apply exclusions (ACRT_EXCLUDE)
+	3.	Resolve Master/Local .lis paths
+	4.	Load XML rules + thresholds
+	5.	Read Master and Local .lis
+	6.	Clean/normalize both listings (preserve line maps)
+	7.	Compute Local-only diff (Local ? Master) (cleaned)
+	8.	Tokenize once:
+	?	Master ? MasterTokenizationContext
+	?	Local  ? LocalTokenizationContext
+	?	Diff   ? DiffTokenizationContext
+	9.	Execute rules (all types) by selecting nodes from the relevant tokenization context indexes
+	10.	Compute deltas and apply thresholds
+	11.	Print actionable (new) findings
+	12.	Write .acrt report atomically
+	13.	Exit
+
+7.2 Module breakdown
+
+nltc_acrt/
+  cli.py
+  env.py
+  config.py
+  listing.py
+  diff.py
+  tokenize.py
+  rules.py
+  runner.py
+  report.py
+  lock.py
+  util.py
+
+
+?
+
+8. Listing Handling (Cleaning and Normalization)
+
+8.1 Cleaning rules
+	?	Remove blank/whitespace-only lines
+	?	Remove full-line comments (first non-space char is *)
+	?	Normalize whitespace (tabs?spaces; collapse runs; strip trailing)
+	?	Normalize case to uppercase
+	?	Preserve mapping: clean_index ? original_lis_line_number
+	?	Local mapping required; Master mapping optional
+
+Output:
+	?	CleanedListing(lines, line_map, path)
+
+?
+
+9. Diff Engine (Local ? Master)
+
+9.1 Algorithm: multiset subtraction
+	1.	Build multiset counts of Master cleaned lines
+	2.	Iterate Local cleaned lines in order:
+	?	if line exists in Master multiset: decrement; skip
+	?	else: add to diff and keep its Local line number
+
+Output:
+	?	CleanedListing for Diff (Local-based line map)
+
+?
+
+10. Mandatory Tokenization & Indexing (Once Per Target)
+
+10.1 Identifier character set (underscore-aware)
+
+Identifiers may include:
+	?	A-Z, 0-9, -, _
+
+Applies to SECTION/PARAGRAPH/VARIABLE names and general identifiers.
+
+10.2 Component hierarchy
+	?	PROGRAM
+	?	DIVISION
+	?	SECTION
+	?	PARAGRAPH
+	?	nested COMMAND nodes
+	?	optional BRANCH regions (ELSE/WHEN/AT END/INVALID KEY)
+
+10.3 Structural header regexes (underscore-aware)
+
+DIVISION:
+	?	^\s*(IDENTIFICATION|ENVIRONMENT|DATA|PROCEDURE)\s+DIVISION\.\s*$
+
+SECTION:
+	?	^\s*([A-Z0-9_-]+)\s+SECTION\.\s*$
+	?	section-like headers:
+	?	^\s*(FILE-CONTROL|SPECIAL-NAMES|I-O-CONTROL)\.\s*$
+
+PARAGRAPH:
+	?	label-only:
+	?	^\s*([A-Z0-9][A-Z0-9_-]*)\.\s*$
+	?	label + inline:
+	?	^\s*([A-Z0-9][A-Z0-9_-]*)\.\s+(.+)$
+
+Identifier token pattern (for variables, etc.):
+	?	\b[A-Z][A-Z0-9_-]*\b
+
+10.4 Command tokenizer with nesting (mandatory)
+
+Semantics
+	?	Period . closes all open blocks (dot scope)
+	?	END-<x> explicitly closes matching blocks
+	?	Branch markers create subregions
+	?	EXEC ? END-EXEC is atomic
+
+Block starters (initial set)
+	?	IF, EVALUATE, inline PERFORM, READ, WRITE, REWRITE, DELETE, START, SEARCH, STRING, UNSTRING
+
+Explicit enders
+	?	END-IF, END-EVALUATE, END-PERFORM, END-READ, END-WRITE, END-REWRITE,
+END-DELETE, END-START, END-SEARCH, END-STRING, END-UNSTRING, END-EXEC
+
+Branch markers
+	?	ELSE
+	?	WHEN, WHEN OTHER
+	?	AT END, NOT AT END
+	?	INVALID KEY, NOT INVALID KEY
+	?	optional/dialect: ON EXCEPTION, NOT ON EXCEPTION
+
+Algorithm
+	?	Stack-based parsing:
+	?	starter ? push node
+	?	branch ? switch insertion region inside current node
+	?	ender ? pop/close node
+	?	. ? pop/close all nodes
+	?	paragraph end ? auto-close remaining nodes with EOF terminator; record anomaly
+
+Tokenizer outputs
+For each target (Master/Local/Diff), tokenization produces a TokenizationContext:
+
+TokenizationContext
+	?	tree: ProgramTree (div/sec/para/command trees)
+	?	indexes (built once):
+	?	by_kind[kind] -> List[Node] (COMMAND/PARAGRAPH/SECTION/DIVISION/PROGRAM)
+	?	by_path_prefix (optional optimization)
+	?	keywords_per_node
+	?	normalized_text_per_node (cached text used by all rule types)
+	?	stats:
+	?	counts of divisions/sections/paragraphs/commands
+	?	anomalies list (unmatched enders, auto-closures, etc.)
+
+Performance contract
+	?	Tokenization + indexes are computed once per target at the start.
+	?	Rules must not trigger tokenization or rebuild indexes.
+
+?
+
+11. Rule Engine: Tokenized-Only, Scoped Execution (All Types)
+
+11.1 Rule evaluation model
+
+Each rule is evaluated against an evaluation node set drawn from the relevant TokenizationContext.
+
+For each rule and each enabled target (Master/Local/Diff):
+	1.	Select context (Master/Local/Diff)
+	2.	Determine scope (default COMMAND)
+	3.	Fetch nodes from context.indexes.by_kind[scope]
+	4.	Apply where filter against node path and/or name
+	5.	Apply optional keywords prefilter
+	6.	Execute rule logic based on type over the resulting node set
+
+11.2 Rule types (illustrative)
+
+All operate on tokenized nodes and metadata:
+	?	REGEX: apply regex to each node?s cached normalized text
+	?	FORBID: fail if a pattern exists anywhere in node set
+	?	REQUIRE: require at least one match in node set
+	?	COUNT_MAX: count matches across node set; fail if > max
+	?	COUNT_REQUIRED: count matches; fail if < required
+	?	STRUCTURE: use nesting/branches:
+	?	READ must include AT END / INVALID KEY
+	?	EXEC not allowed under PERFORM UNTIL
+	?	etc.
+
+11.3 Finding model
+
+Each finding includes:
+	?	rule metadata (number/severity/description/type)
+	?	target (MASTER/LOCAL/DIFF)
+	?	element name
+	?	line (node start_line)
+	?	path (division/section/paragraph + nesting path)
+	?	snippet (short excerpt)
+	?	signature (stable key for diffing and de-dup)
+
+11.4 Actionable console output
+
+Print only Local-introduced findings:
+	?	Prefer DIFF target findings
+	?	Additionally for Local-only rules: LocalFindings ? MasterFindings by signature
+
+Sort: severity (E/W/I), then line, then rule number.
+
+?
+
+12. Threshold Evaluation
+
+Compute severity totals for Master and Local (and optionally Diff for reporting):
+	?	errors_master, warnings_master, infos_master
+	?	errors_local, warnings_local, infos_local
+
+Compute deltas:
+	?	delta = local - master
+
+Fail (exit 1) if any delta exceeds configured thresholds.
+
+?
+
+13. Reporting
+
+13.1 .acrt report structure
+	1.	Header: version, timestamp, element, paths, env
+	2.	Thresholds
+	3.	Tokenization summary:
+	?	counts (div/sec/para/command)
+	?	anomalies
+	?	timing for tokenization/index build
+	4.	Summary counts:
+	?	Master/Local/Diff and deltas
+	5.	Actionable findings list
+	6.	Full per-rule details:
+	?	evaluation scope
+	?	nodes scanned count
+	?	matches with path/lines/snippets
+	7.	Timings (clean/diff/tokenize/rules/report)
+
+13.2 Atomic overwrite
+
+Write to temp then os.replace.
+
+13.3 Optional history append
+
+Append summary lines guarded with fcntl.flock.
+
+?
+
+14. Performance Considerations
+	?	Tokenize once per target and cache:
+	?	normalized node text
+	?	by-kind node lists
+	?	keyword sets
+	?	Compile regex patterns once per run.
+	?	Use keyword prefilters to reduce node set size per rule.
+
+?
+
+15. Error Handling
+
+Exit 2 for:
+	?	missing env vars
+	?	missing/invalid XML
+	?	missing listings
+	?	tokenizer cannot build tree/context
+	?	runtime exceptions
+
+?
+
+16. Testing Strategy
+
+Tokenizer and indexing are mandatory; tests validate:
+	?	dot scope closes open blocks
+	?	END- closes matching blocks
+	?	branch markers attach correctly
+	?	EXEC?END-EXEC atomic
+	?	underscore names recognized in SECTION/PARAGRAPH/VARIABLEs
+	?	tokenization done once; rules only query indexes (mock/assert)
+	?	rule types behave correctly over node sets + metadata
+	?	diff preserves Local line numbers
+
+?
+
+17. Deliverables
+	?	acrt.py entry point
+	?	nltc_acrt/ package modules above
+	?	CONF/ACRT_RULES.XML
+	?	README.md with usage, env vars, exit codes, examples, troubleshooting

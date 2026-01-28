@@ -1,34 +1,26 @@
-Getting current ACRT v0.3.3 status for demo_ica_chk_cob_regression.cob on 2026-01-22 21:10:42 (user: orennissan):
+Getting current ACRT v0.4.0 status for demo_ica_chk_cob_regression.cob on 2026-01-27 20:24:01 (user: orennissan):
 On Master build directory : #Errors 0 #Warnings 0 #Infos 0
-On Private build directory : #Errors 4 #Warnings 0 #Infos 0
-The difference : Errors 4 Warnings 0 Infos 0
+On Private build directory : #Errors 12 #Warnings 0 #Infos 0
+The difference : Errors 12 Warnings 0 Infos 0
 
 ACRT RULES REPORT
 ==================================================
 Rule matches on LOCAL LISTING (Private build):
 --------------------------------------------------
-[E] Rule 10.0: Do not hard-code long numeric strings (8+ digits)
-   Type  : FORBIDDEN_LONG_NUMBERS
-   Hits  : 1
-   Samples:
-     - Hard-coded long numeric strings count=1
-     - Line 127: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-   demo_ica_chk_cob_regression.cob:127: Error: ACRT v0.3.3 Rule 10.0: Do not hard-code long numeric strings (8+ digits)
-
 [E] Rule 2.23: Add END-IF/END-EVALUATE/END-READ/END-PERFORM (inline PERFORM only)
    Type  : END_CLAUSE_REQUIRED
    Hits  : 1
    Samples:
      - Missing END clause count=1
      - IF started at line 665 missing END-IF
-   demo_ica_chk_cob_regression.cob:665: Error: ACRT v0.3.3 Rule 2.23: Add END-IF/END-EVALUATE/END-READ/END-PERFORM (inline PERFORM only)
+   demo_ica_chk_cob_regression.cob:665: Error: ACRT v0.4.0 Rule 2.23: Add END-IF/END-EVALUATE/END-READ/END-PERFORM (inline PERFORM only)
 
 [E] Rule 6.26: PROGRAM-ID has to be identical to the file name (without the extension)
    Type  : PROGRAM_ID_MATCH
    Hits  : 1
    Samples:
      - PROGRAM-ID=REGTEST-COMP (expected DEMO_ICA_CHK_COB_REGRESSION)
-   demo_ica_chk_cob_regression.cob:11: Error: ACRT v0.3.3 Rule 6.26: PROGRAM-ID has to be identical to the file name (without the extension)
+   demo_ica_chk_cob_regression.cob:11: Error: ACRT v0.4.0 Rule 6.26: PROGRAM-ID has to be identical to the file name (without the extension)
 
 [E] Rule 8.1: Use WHEN OTHER for every EVALUATE
    Type  : EVALUATE_WHEN_OTHER
@@ -36,17 +28,34 @@ Rule matches on LOCAL LISTING (Private build):
    Samples:
      - EVALUATE without WHEN OTHER count=1
      - EVALUATE at line 716 missing WHEN OTHER
-   demo_ica_chk_cob_regression.cob:716: Error: ACRT v0.3.3 Rule 8.1: Use WHEN OTHER for every EVALUATE
+   demo_ica_chk_cob_regression.cob:716: Error: ACRT v0.4.0 Rule 8.1: Use WHEN OTHER for every EVALUATE
 
+[E] Rule 10.0: Do not hard-code long numeric strings (8+ digits)
+   Type  : FORBIDDEN_LONG_NUMBERS
+   Hits  : 9
+   Samples:
+     - Hard-coded long numeric strings count=9
+     - Line 823: 567890123
+   demo_ica_chk_cob_regression.cob:823: Error: ACRT v0.4.0 Rule 10.0: Do not hard-code long numeric strings (8+ digits)
+   demo_ica_chk_cob_regression.cob:36: Error: ACRT v0.4.0 Rule 10.0: Do not hard-code long numeric strings (8+ digits)
+   demo_ica_chk_cob_regression.cob:37: Error: ACRT v0.4.0 Rule 10.0: Do not hard-code long numeric strings (8+ digits)
+   demo_ica_chk_cob_regression.cob:40: Error: ACRT v0.4.0 Rule 10.0: Do not hard-code long numeric strings (8+ digits)
+   demo_ica_chk_cob_regression.cob:41: Error: ACRT v0.4.0 Rule 10.0: Do not hard-code long numeric strings (8+ digits)
+   demo_ica_chk_cob_regression.cob:44: Error: ACRT v0.4.0 Rule 10.0: Do not hard-code long numeric strings (8+ digits)
+   demo_ica_chk_cob_regression.cob:45: Error: ACRT v0.4.0 Rule 10.0: Do not hard-code long numeric strings (8+ digits)
+   demo_ica_chk_cob_regression.cob:67: Error: ACRT v0.4.0 Rule 10.0: Do not hard-code long numeric strings (8+ digits)
+   demo_ica_chk_cob_regression.cob:126: Error: ACRT v0.4.0 Rule 10.0: Do not hard-code long numeric strings (8+ digits)
 
 Rule matches on MASTER LISTING (ALM build):
+--------------------------------------------------
 No rule matches.
 
 Rule matches on LOCAL-ONLY DIFF (Private - Master):
+--------------------------------------------------
 No rule matches.
 
 Thresholds: Errors>0 Warnings>50 Infos>100
-Current abs diff: Errors=4 Warnings=0 Infos=0
+Current abs diff: Errors=12 Warnings=0 Infos=0
 
-RESULT: ERROR - the following demo_ica_chk_cob_regression.cob program does not meet ACRT v0.3.3 standards.
-Report generated at: 2026-01-22 21:10:42
+RESULT: ERROR - the following demo_ica_chk_cob_regression.cob program does not meet ACRT v0.4.0 standards.
+Report generated at: 2026-01-27 20:24:01
