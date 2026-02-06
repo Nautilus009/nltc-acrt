@@ -7,7 +7,6 @@ __all__ = [
     "rules",
     "runner",
     "report",
-    "lock",
     "util",
 ]
 

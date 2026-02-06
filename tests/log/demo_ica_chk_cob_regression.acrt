@@ -57,5 +57,5 @@ No rule matches.
 Thresholds: Errors>0 Warnings>50 Infos>100
 Current abs diff: Errors=12 Warnings=0 Infos=0
 
-RESULT: ERROR - the following demo_ica_chk_cob_regression.cob program does not meet ACRT v0.4.0 standards.
+RESULT: ERROR - the demo_ica_chk_cob_regression.cob program does not meet ACRT v0.4.0 standards.
 Report generated at: 2026-01-27 20:04:48

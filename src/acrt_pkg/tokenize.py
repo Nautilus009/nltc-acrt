@@ -1,6 +1,7 @@
 import re
 from dataclasses import dataclass, field
 from typing import Optional
+from .util import extract_program_id
 
 DIVISION_RE = re.compile(r"^\s*(IDENTIFICATION|ENVIRONMENT|DATA|PROCEDURE)\s+DIVISION(?:\s+.*)?\.?\s*$")
 SECTION_RE = re.compile(r"^\s*([A-Z0-9_-]+)\s+SECTION\.\s*$")
@@ -607,4 +608,3 @@ def _infer_var_value(line):
         if re.search(r"[9SV]", pic_text):
             return "0", False
     return "", False
-from .util import extract_program_id

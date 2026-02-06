@@ -1,4 +1,4 @@
-Getting current ACRT v0.4.0 status for ica_check_if_subs_active.cob on 2026-01-27 20:46:57 (user: orennissan):
+Getting current ACRT v0.4.0 status for ica_check_if_subs_active.cob on 2026-02-06 13:59:08 (user: root):
 On Master build directory : #Errors 0 #Warnings 0 #Infos 0
 On Private build directory : #Errors 6 #Warnings 0 #Infos 0
 The difference : Errors 6 Warnings 0 Infos 0
@@ -64,5 +64,5 @@ No rule matches.
 Thresholds: Errors>0 Warnings>50 Infos>100
 Current abs diff: Errors=6 Warnings=0 Infos=0
 
-RESULT: ERROR - the following ica_check_if_subs_active.cob program does not meet ACRT v0.4.0 standards.
-Report generated at: 2026-01-27 20:46:57
+RESULT: ERROR - the ica_check_if_subs_active.cob program does not meet ACRT v0.4.0 standards.
+Report generated at: 2026-02-06 13:59:08
