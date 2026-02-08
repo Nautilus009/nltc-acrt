@@ -14,43 +14,6 @@ This design is ideal for:
 ## Key Features
 
 - **Python-based** (fast iteration, easy maintenance)
-- **External XML rules configuration**
-  - Rule number
-  - Severity: **E** (Error), **W** (Warning), **I** (Info)
-  - Description
-  - Regex pattern
-  - Run flag (Y/N)
-- Applies rules on:
-  1) Master listing: `$BUILD_ALM_PATH_BB/target/obj/<name>.lis`
-  2) Local listing:  `$BUILD_LOCAL_PATH_BB/target/obj/<name>.lis`
-  3) Local-only diff: (2 − 1) after stripping comments/blanks
-- **Console output** shows only actionable diagnostics lines (commit-gate friendly)
-- **Per-element status report file** with full details + history
-- **Safe report appends** using Linux advisory locking (`fcntl.flock`) on the status file
-
----
-
-## Supported COBOL Source Types
-
-Input extensions supported:
-- `.cob`
-- `.pco`
-- `.inc`
-
-Example:
-```bash
-python3 acrt.py src/ica_check_if_subs_active.cob
-
-
-This design is ideal for:
-- **ALM commit gating** (block commit if new violations are introduced)
-- optional **build/compile integration** (post-compile auditing)
-
----
-
-## Key Features
-
-- **Python-based** (fast iteration, easy maintenance)
 - **External XML rules configuration** (`$ACRT_HOME/CONF/ACRT_RULES.XML`)
   - Rule number
   - Severity: **E** (Error), **W** (Warning), **I** (Info)
@@ -65,6 +28,7 @@ This design is ideal for:
   3) Local-only diff: **(Local - Master)** after stripping comments/blanks
 - **Console output** is commit-gate friendly: prints **only diagnostics that appear in Local but not in Master**
 - **Per-element status report file** with full details, overwritten each run
+- **Safe atomic writes** using `tempfile` + `os.replace` for report output
 
 ---
 

@@ -178,9 +178,14 @@ def build_report(
         or delta["W"] > thresholds.warnings
         or delta["I"] > thresholds.infos
     ) else "OK"
-    lines.append(
-        f"RESULT: {status} - the following {element} program does not meet ACRT v{version} standards."
-    )
+    if status == "OK":
+        lines.append(
+            f"RESULT: {status} - the {element} program meets ACRT v{version} standards."
+        )
+    else:
+        lines.append(
+            f"RESULT: {status} - the {element} program does not meet ACRT v{version} standards."
+        )
     lines.append(f"Report generated at: {timestamp}")
 
     return "\n".join(lines) + "\n"
