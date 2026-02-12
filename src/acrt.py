@@ -59,8 +59,10 @@ def main(argv=None):
     for finding in result.actionable:
         sev = SEVERITY_LABELS.get(finding.severity, finding.severity)
         line = "?" if finding.line is None else finding.line
+        full_path = os.path.abspath(element_path)
+
         print(
-            f"   {element_name}:{line}: {sev}: ACRT v{__version__} Rule {finding.rule_number}: {finding.description}"
+            f"   {full_path}:{line}: {sev}: ACRT v{__version__} Rule {finding.rule_number}: {finding.description}"
         )
 
     return result.exit_code
