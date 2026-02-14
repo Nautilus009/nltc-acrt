@@ -18,3 +18,5 @@
    /Users/orennissan/Library/Mobile Documents/com~apple~CloudDocs/Documents/NLTC-workspace/nltc-acrt/tests/local/src/demo_ica_chk_cob_regression.cob:67: Error: ACRT v0.4.0 Rule 10.0: Do not hard-code long numeric strings (8+ digits)
    /Users/orennissan/Library/Mobile Documents/com~apple~CloudDocs/Documents/NLTC-workspace/nltc-acrt/tests/local/src/demo_ica_chk_cob_regression.cob:126: Error: ACRT v0.4.0 Rule 10.0: Do not hard-code long numeric strings (8+ digits)
    /Users/orennissan/Library/Mobile Documents/com~apple~CloudDocs/Documents/NLTC-workspace/nltc-acrt/tests/local/src/demo_ica_chk_cob_regression.cob:823: Error: ACRT v0.4.0 Rule 10.0: Do not hard-code long numeric strings (8+ digits)
++ python3 acrt.py src/demo_ica_chk_rms_v24.cob
+   /Users/orennissan/Library/Mobile Documents/com~apple~CloudDocs/Documents/NLTC-workspace/nltc-acrt/tests/local/src/demo_ica_chk_rms_v24.cob:181: Error: ACRT v0.4.0 Rule 10.0: Do not hard-code long numeric strings (8+ digits)

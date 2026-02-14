@@ -6,6 +6,8 @@ from .util import extract_program_id
 DIVISION_RE = re.compile(r"^\s*(IDENTIFICATION|ENVIRONMENT|DATA|PROCEDURE)\s+DIVISION(?:\s+.*)?\.?\s*$")
 SECTION_RE = re.compile(r"^\s*([A-Z0-9_-]+)\s+SECTION\.\s*$")
 SECTION_LIKE_RE = re.compile(r"^\s*(FILE-CONTROL|SPECIAL-NAMES|I-O-CONTROL)\.\s*$")
+DECLARATIVES_RE = re.compile(r"^\s*DECLARATIVES\.\s*$")
+END_DECLARATIVES_RE = re.compile(r"^\s*END\s+DECLARATIVES\.\s*$")
 PARA_ONLY_RE = re.compile(r"^([A-Z0-9][A-Z0-9_-]*)\.\s*$")
 PARA_INLINE_RE = re.compile(r"^([A-Z0-9][A-Z0-9_-]*)\.\s+(.+)$")
 END_LABEL_RE = re.compile(r"^\s*END-[A-Z0-9_-]+\.\s*$")
@@ -186,6 +188,7 @@ def tokenize(cleaned_listing, element_name):
     current_command = None
     command_stack = []
     in_procedure = False
+    in_declaratives = False
     last_real_line_no = 1
     prev_line_dot = False
     prev_line_was_section = False
@@ -248,7 +251,20 @@ def tokenize(cleaned_listing, element_name):
             current_sec = None
             current_para = None
             in_procedure = div_name == "PROCEDURE"
+            in_declaratives = False
             continue
+
+        if in_procedure:
+            if DECLARATIVES_RE.match(line):
+                in_declaratives = True
+                prev_line_dot = line.strip().endswith(".")
+                prev_line_was_section = False
+                continue
+            if END_DECLARATIVES_RE.match(line):
+                in_declaratives = False
+                prev_line_dot = line.strip().endswith(".")
+                prev_line_was_section = False
+                continue
 
         sec_match = SECTION_RE.match(line)
         sec_like_match = None
@@ -261,6 +277,7 @@ def tokenize(cleaned_listing, element_name):
             current_sec = Node(kind="SECTION", name=sec_name, start_line=safe_line_no(line_no), end_line=safe_line_no(line_no))
             current_sec.division = current_div.name if current_div else None
             current_sec.section = sec_name
+            current_sec.meta["in_declaratives"] = bool(in_procedure and in_declaratives)
             if current_div:
                 current_div.add_child(current_sec)
             else:

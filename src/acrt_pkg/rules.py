@@ -142,13 +142,21 @@ class RuleEngine:
 
     def _run_paragraph_prefix_match(self, rule, context, target, element_name, file_stem):
         findings = []
+        section_lines = {}
+        for section in context.by_kind["SECTION"]:
+            if section.division != "PROCEDURE":
+                continue
+            section_lines[section.name] = section.start_line
         for para in context.by_kind["PARAGRAPH"]:
             if para.division != "PROCEDURE" or not para.section:
                 continue
             section_name = para.section
             prefix = section_name.split("-")[0] if "-" in section_name else section_name
-            if not para.name.startswith(prefix + "-"):
-                findings.append(_finding(rule, target, element_name, para.start_line, para.path(), f"{para.name} in SECTION {section_name}"))
+            matches_standard_prefix = para.name.startswith(prefix + "-")
+            matches_numeric_prefix = prefix.isdigit() and para.name == prefix
+            if not matches_standard_prefix and not matches_numeric_prefix:
+                line = section_lines.get(section_name, para.start_line) if target == "MASTER" else para.start_line
+                findings.append(_finding(rule, target, element_name, line, para.path(), f"{para.name} in SECTION {section_name}"))
         return findings
 
     def _run_program_id_match(self, rule, context, target, element_name, file_stem):
@@ -194,7 +202,11 @@ class RuleEngine:
     def _run_unused_sections(self, rule, context, target, element_name, file_stem):
         exclude = rule.attrs.get("exclude", "")
         exclude_set = {s.strip().upper() for s in exclude.split(",") if s.strip()}
-        sections = [s for s in context.by_kind["SECTION"] if s.division == "PROCEDURE"]
+        sections = [
+            s
+            for s in context.by_kind["SECTION"]
+            if s.division == "PROCEDURE" and not s.meta.get("in_declaratives")
+        ]
         para_to_section = {p.name: p.section for p in context.by_kind["PARAGRAPH"]}
         referenced = set()
         for node in context.by_kind["COMMAND"]:

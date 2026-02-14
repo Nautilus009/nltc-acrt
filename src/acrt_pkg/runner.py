@@ -1,4 +1,5 @@
 import os
+from collections import Counter
 from dataclasses import dataclass
 from . import __version__
 from .config import load_rules
@@ -41,12 +42,17 @@ def _sort_findings(findings):
     )
 
 
+def _actionable_key(finding):
+    return (finding.rule_number, finding.path, finding.snippet)
+
+
 def run_acrt(element_path, env, debug=False, debug_tree=False):
     element_name = os.path.basename(element_path)
     file_stem, _ = os.path.splitext(element_name)
 
     rules_path = os.path.join(env["ACRT_HOME"], "CONF", "ACRT_RULES.XML")
     thresholds, rules = load_rules(rules_path)
+    rules_by_number = {r.number: r for r in rules}
 
     master_path = os.path.join(env["BUILD_ALM_PATH_BB"], "target", "obj", f"{file_stem}.lis")
     local_path = os.path.join(env["BUILD_LOCAL_PATH_BB"], "target", "obj", f"{file_stem}.lis")
@@ -56,16 +62,23 @@ def run_acrt(element_path, env, debug=False, debug_tree=False):
 
     master_raw = read_listing(master_path)
     local_raw = read_listing(local_path)
-    source_raw = read_listing(element_path)
-    source_cleaned = clean_source(source_raw)
+    local_source_raw = read_listing(element_path)
+    local_source_cleaned = clean_source(local_source_raw)
 
-    master_clean = clean_listing(master_raw, master_path, source_cleaned=source_cleaned)
-    local_clean = clean_listing(local_raw, local_path, source_cleaned=source_cleaned)
+    master_source_path = os.path.join(env["BUILD_ALM_PATH_BB"], "src", element_name)
+    if os.path.exists(master_source_path):
+        master_source_raw = read_listing(master_source_path)
+        master_source_cleaned = clean_source(master_source_raw)
+    else:
+        master_source_cleaned = local_source_cleaned
+
+    master_clean = clean_listing(master_raw, master_path, source_cleaned=master_source_cleaned)
+    local_clean = clean_listing(local_raw, local_path, source_cleaned=local_source_cleaned)
     diff_clean = local_only_diff(master_clean, local_clean)
 
     source_program_id = None
     source_program_line = None
-    for text, line_no, _c1 in source_cleaned:
+    for text, line_no, _c1 in local_source_cleaned:
         program_id = extract_program_id(text)
         if program_id:
             source_program_id = program_id
@@ -130,12 +143,21 @@ def run_acrt(element_path, env, debug=False, debug_tree=False):
             diff_findings.extend(res)
             per_rule["DIFF"][rule.number] = res
 
-    master_signatures = {f.signature() for f in master_findings}
     actionable = []
     for f in diff_findings:
         actionable.append(f)
+    master_key_counts = Counter(_actionable_key(f) for f in master_findings)
     for f in local_findings:
-        if f.signature() not in master_signatures:
+        rule = rules_by_number.get(f.rule_number)
+        if rule and not rule.on_master:
+            actionable.append(f)
+            continue
+        if not rule:
+            continue
+        key = _actionable_key(f)
+        if master_key_counts.get(key, 0) > 0:
+            master_key_counts[key] -= 1
+        else:
             actionable.append(f)
 
     actionable = _sort_findings(actionable)

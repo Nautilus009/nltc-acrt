@@ -1,7 +1,7 @@
-Getting current ACRT v0.4.0 status for demo_ica_chk_cob_regression.cob on 2026-02-12 08:11:04 (user: orennissan):
-On Master build directory : #Errors 0 #Warnings 0 #Infos 0
+Getting current ACRT v0.4.0 status for demo_ica_chk_cob_regression.cob on 2026-02-14 15:07:17 (user: orennissan):
+On Master build directory : #Errors 2 #Warnings 0 #Infos 0
 On Private build directory : #Errors 12 #Warnings 0 #Infos 0
-The difference : Errors 12 Warnings 0 Infos 0
+The difference : Errors 10 Warnings 0 Infos 0
 
 ACRT RULES REPORT
 ==================================================
@@ -48,14 +48,21 @@ Rule matches on LOCAL LISTING (Private build):
 
 Rule matches on MASTER LISTING (ALM build):
 --------------------------------------------------
-No rule matches.
+[E] Rule 3.23: A paragraph name must have the same prefix as the section containing it
+   Type  : PARAGRAPH_PREFIX_MATCH
+   Hits  : 2
+   Samples:
+     - PARAGRAPH prefix mismatch count=2
+     - TH-ARITHMETIC-COMP-00 (line 283) is in SECTION T-ARITHMETIC-COMP
+   demo_ica_chk_cob_regression.cob:283: Error: ACRT v0.4.0 Rule 3.23: A paragraph name must have the same prefix as the section containing it
+   demo_ica_chk_cob_regression.cob:935: Error: ACRT v0.4.0 Rule 3.23: A paragraph name must have the same prefix as the section containing it
 
 Rule matches on LOCAL-ONLY DIFF (Private - Master):
 --------------------------------------------------
 No rule matches.
 
 Thresholds: Errors>0 Warnings>50 Infos>100
-Current abs diff: Errors=12 Warnings=0 Infos=0
+Current abs diff: Errors=10 Warnings=0 Infos=0
 
 RESULT: ERROR - the demo_ica_chk_cob_regression.cob program does not meet ACRT v0.4.0 standards.
-Report generated at: 2026-02-12 08:11:04
+Report generated at: 2026-02-14 15:07:17

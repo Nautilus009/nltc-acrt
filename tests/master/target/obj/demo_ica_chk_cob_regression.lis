@@ -1028,7 +1028,7 @@ T-ARITHMETIC-DISPLAY-EXIT. EXIT.
 **>----------------------------------------------------------------------
 T-ARITHMETIC-COMP       SECTION.
 **>----------------------------------------------------------------------
-T-ARITHMETIC-COMP-00.
+TH-ARITHMETIC-COMP-00.
 
     MOVE "ART-002" TO WS-TEST-ID
     ADD 1 TO WS-TEST-COUNT
@@ -1680,7 +1680,7 @@ T-TYPE-CONVERSIONS-EXIT. EXIT.
 **>----------------------------------------------------------------------
 Z-FINISH               SECTION.
 **>----------------------------------------------------------------------
-Z-00.
+ZH-00.
 
     DISPLAY WS-SEPARATOR
     DISPLAY "Total tests executed: " WS-TEST-COUNT
