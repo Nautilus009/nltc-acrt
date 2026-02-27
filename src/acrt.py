@@ -14,6 +14,7 @@ def _parse_args(argv):
     parser.add_argument("-version", action="store_true")
     parser.add_argument("-debug", action="store_true")
     parser.add_argument("-debug-tree", action="store_true")
+    parser.add_argument("-debug-match-rule")
     parser.add_argument("element", nargs="?")
     return parser.parse_args(argv)
 
@@ -51,7 +52,13 @@ def main(argv=None):
         return 2
 
     try:
-        result = run_acrt(element_path, env, debug=args.debug, debug_tree=args.debug_tree)
+        result = run_acrt(
+            element_path,
+            env,
+            debug=args.debug,
+            debug_tree=args.debug_tree,
+            debug_match_rule=args.debug_match_rule,
+        )
     except Exception as e:
         print(f"ACRT error: {e}")
         return 2

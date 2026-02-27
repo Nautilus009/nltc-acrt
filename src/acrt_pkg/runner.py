@@ -46,7 +46,7 @@ def _actionable_key(finding):
     return (finding.rule_number, finding.path, finding.snippet)
 
 
-def run_acrt(element_path, env, debug=False, debug_tree=False):
+def run_acrt(element_path, env, debug=False, debug_tree=False, debug_match_rule=None):
     element_name = os.path.basename(element_path)
     file_stem, _ = os.path.splitext(element_name)
 
@@ -147,6 +147,7 @@ def run_acrt(element_path, env, debug=False, debug_tree=False):
     for f in diff_findings:
         actionable.append(f)
     master_key_counts = Counter(_actionable_key(f) for f in master_findings)
+    master_key_counts_before_subtract = Counter(master_key_counts)
     for f in local_findings:
         rule = rules_by_number.get(f.rule_number)
         if rule and not rule.on_master:
@@ -159,6 +160,48 @@ def run_acrt(element_path, env, debug=False, debug_tree=False):
             master_key_counts[key] -= 1
         else:
             actionable.append(f)
+
+    if debug_match_rule:
+        rule_number = str(debug_match_rule).strip()
+        local_rule_keys = Counter(
+            _actionable_key(f) for f in local_findings if str(f.rule_number) == rule_number
+        )
+        master_rule_keys_before = Counter(
+            {k: c for k, c in master_key_counts_before_subtract.items() if str(k[0]) == rule_number}
+        )
+        master_rule_keys_after = Counter(
+            {k: c for k, c in master_key_counts.items() if str(k[0]) == rule_number}
+        )
+
+        debug_lines = [
+            f"Rule match debug for {element_name} / rule {rule_number}",
+            f"Master findings for rule: {sum(master_rule_keys_before.values())}",
+            f"Local findings for rule : {sum(local_rule_keys.values())}",
+            f"Unmatched local keys    : {sum((local_rule_keys - master_rule_keys_before).values())}",
+            f"Unmatched master keys   : {sum(master_rule_keys_after.values())}",
+            "",
+            "== LOCAL KEYS (count x key) ==",
+        ]
+        for key, count in sorted(local_rule_keys.items()):
+            debug_lines.append(f"{count} x {key}")
+        debug_lines.append("")
+        debug_lines.append("== MASTER KEYS BEFORE SUBTRACT (count x key) ==")
+        for key, count in sorted(master_rule_keys_before.items()):
+            debug_lines.append(f"{count} x {key}")
+        debug_lines.append("")
+        debug_lines.append("== LOCAL-ONLY UNMATCHED KEYS (count x key) ==")
+        for key, count in sorted((local_rule_keys - master_rule_keys_before).items()):
+            debug_lines.append(f"{count} x {key}")
+        debug_lines.append("")
+        debug_lines.append("== MASTER-ONLY REMAINING KEYS AFTER SUBTRACT (count x key) ==")
+        for key, count in sorted(master_rule_keys_after.items()):
+            debug_lines.append(f"{count} x {key}")
+        debug_lines.append("")
+
+        debug_match_path = os.path.join(
+            env["BUILD_LOCAL_PATH_BB"], "target", "obj", f"{file_stem}.acrt.match.debug"
+        )
+        atomic_write(debug_match_path, "\n".join(debug_lines) + "\n")
 
     actionable = _sort_findings(actionable)
 
