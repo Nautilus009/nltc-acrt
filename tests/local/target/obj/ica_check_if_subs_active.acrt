@@ -1,4 +1,4 @@
-Getting current ACRT v0.4.0 status for ica_check_if_subs_active.cob on 2026-02-14 15:07:17 (user: orennissan):
+Getting current ACRT v0.4.1 status for ica_check_if_subs_active.cob on 2026-02-27 06:24:26 (user: orennissan):
 On Master build directory : #Errors 0 #Warnings 0 #Infos 0
 On Private build directory : #Errors 6 #Warnings 0 #Infos 0
 The difference : Errors 6 Warnings 0 Infos 0
@@ -12,14 +12,14 @@ Rule matches on LOCAL LISTING (Private build):
    Hits  : 1
    Samples:
      - Missing SECTION(s): B-INIT
-   ica_check_if_subs_active.cob:177: Error: ACRT v0.4.0 Rule 2.22: The following sections are mandatory: A-MAIN, B-INIT, Z-FINISH
+   ica_check_if_subs_active.cob:177: Error: ACRT v0.4.1 Rule 2.22: The following sections are mandatory: A-MAIN, B-INIT, Z-FINISH
 
 [E] Rule 2.28: Do not use STOP RUN
    Regex : (?:^|[^A-Z0-9-])STOP\s+RUN(?:[^A-Z0-9-]|$)
    Hits  : 1
    Samples:
      -     STOP RUN
-   ica_check_if_subs_active.cob:757: Error: ACRT v0.4.0 Rule 2.28: Do not use STOP RUN
+   ica_check_if_subs_active.cob:757: Error: ACRT v0.4.1 Rule 2.28: Do not use STOP RUN
 
 [E] Rule 3.22: SECTION and paragraph names must be unique in the program
    Type  : UNIQUE_PARAGRAPHS
@@ -27,7 +27,7 @@ Rule matches on LOCAL LISTING (Private build):
    Samples:
      - Duplicate PARAGRAPH(s) count=1
      - Duplicate PARAGRAPH: A-00 at line 199
-   ica_check_if_subs_active.cob:199: Error: ACRT v0.4.0 Rule 3.22: SECTION and paragraph names must be unique in the program
+   ica_check_if_subs_active.cob:199: Error: ACRT v0.4.1 Rule 3.22: SECTION and paragraph names must be unique in the program
 
 [E] Rule 3.23: A paragraph name must have the same prefix as the section containing it
    Type  : PARAGRAPH_PREFIX_MATCH
@@ -35,7 +35,7 @@ Rule matches on LOCAL LISTING (Private build):
    Samples:
      - PARAGRAPH prefix mismatch count=1
      - B-EXIT (line 296) is in SECTION A-INIT
-   ica_check_if_subs_active.cob:296: Error: ACRT v0.4.0 Rule 3.23: A paragraph name must have the same prefix as the section containing it
+   ica_check_if_subs_active.cob:296: Error: ACRT v0.4.1 Rule 3.23: A paragraph name must have the same prefix as the section containing it
 
 [E] Rule 8.3: GO TO is permitted only to the EXIT paragraph of the same SECTION (and the EXIT paragraph must contain only EXIT)
    Type  : GOTO_EXIT_ONLY_SAME_SECTION
@@ -43,7 +43,7 @@ Rule matches on LOCAL LISTING (Private build):
    Samples:
      - GO TO violations count=1
      - GO TO Z-00 at line 755: GO TO allowed only to ['Z-EX', 'Z-EXIT'] in SECTION Z-FINISH
-   ica_check_if_subs_active.cob:755: Error: ACRT v0.4.0 Rule 8.3: GO TO is permitted only to the EXIT paragraph of the same SECTION (and the EXIT paragraph must contain only EXIT)
+   ica_check_if_subs_active.cob:755: Error: ACRT v0.4.1 Rule 8.3: GO TO is permitted only to the EXIT paragraph of the same SECTION (and the EXIT paragraph must contain only EXIT)
 
 [E] Rule 10.0: Do not hard-code long numeric strings (8+ digits)
    Type  : FORBIDDEN_LONG_NUMBERS
@@ -51,7 +51,7 @@ Rule matches on LOCAL LISTING (Private build):
    Samples:
      - Hard-coded long numeric strings count=1
      - Line 166: "00000000000100804347"
-   ica_check_if_subs_active.cob:166: Error: ACRT v0.4.0 Rule 10.0: Do not hard-code long numeric strings (8+ digits)
+   ica_check_if_subs_active.cob:166: Error: ACRT v0.4.1 Rule 10.0: Do not hard-code long numeric strings (8+ digits)
 
 Rule matches on MASTER LISTING (ALM build):
 --------------------------------------------------
@@ -64,5 +64,5 @@ No rule matches.
 Thresholds: Errors>0 Warnings>50 Infos>100
 Current abs diff: Errors=6 Warnings=0 Infos=0
 
-RESULT: ERROR - the ica_check_if_subs_active.cob program does not meet ACRT v0.4.0 standards.
-Report generated at: 2026-02-14 15:07:17
+RESULT: ERROR - the ica_check_if_subs_active.cob program does not meet ACRT v0.4.1 standards.
+Report generated at: 2026-02-27 06:24:26

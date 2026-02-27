@@ -1,4 +1,4 @@
-Getting current ACRT v0.4.0 status for demo_ica_chk_rms_v24.cob on 2026-02-14 14:34:19 (user: orennissan):
+Getting current ACRT v0.4.1 status for demo_ica_chk_rms_v24.cob on 2026-02-14 14:34:19 (user: orennissan):
 On Master build directory : #Errors 3 #Warnings 0 #Infos 0
 On Private build directory : #Errors 4 #Warnings 0 #Infos 0
 The difference : Errors 1 Warnings 0 Infos 0
@@ -12,15 +12,15 @@ Rule matches on LOCAL LISTING (Private build):
    Hits  : 2
    Samples:
      -     STOP RUN .
-   demo_ica_chk_rms_v24.cob:225: Error: ACRT v0.4.0 Rule 2.28: Do not use STOP RUN
-   demo_ica_chk_rms_v24.cob:241: Error: ACRT v0.4.0 Rule 2.28: Do not use STOP RUN
+   demo_ica_chk_rms_v24.cob:225: Error: ACRT v0.4.1 Rule 2.28: Do not use STOP RUN
+   demo_ica_chk_rms_v24.cob:241: Error: ACRT v0.4.1 Rule 2.28: Do not use STOP RUN
 
 [E] Rule 5.1: There must not be any unused SECTIONs (every SECTION must be referenced by PERFORM or GO TO)
    Type  : UNUSED_SECTIONS (exclude=A-MAIN,I-DUMMY)
    Hits  : 1
    Samples:
      - Unused SECTION X-ERRORS
-   demo_ica_chk_rms_v24.cob:215: Error: ACRT v0.4.0 Rule 5.1: There must not be any unused SECTIONs (every SECTION must be referenced by PERFORM or GO TO)
+   demo_ica_chk_rms_v24.cob:215: Error: ACRT v0.4.1 Rule 5.1: There must not be any unused SECTIONs (every SECTION must be referenced by PERFORM or GO TO)
 
 [E] Rule 10.0: Do not hard-code long numeric strings (8+ digits)
    Type  : FORBIDDEN_LONG_NUMBERS
@@ -28,7 +28,7 @@ Rule matches on LOCAL LISTING (Private build):
    Samples:
      - Hard-coded long numeric strings count=1
      - Line 181: "91234567890123456789"
-   demo_ica_chk_rms_v24.cob:181: Error: ACRT v0.4.0 Rule 10.0: Do not hard-code long numeric strings (8+ digits)
+   demo_ica_chk_rms_v24.cob:181: Error: ACRT v0.4.1 Rule 10.0: Do not hard-code long numeric strings (8+ digits)
 
 Rule matches on MASTER LISTING (ALM build):
 --------------------------------------------------
@@ -37,15 +37,15 @@ Rule matches on MASTER LISTING (ALM build):
    Hits  : 2
    Samples:
      -     STOP RUN .
-   demo_ica_chk_rms_v24.cob:225: Error: ACRT v0.4.0 Rule 2.28: Do not use STOP RUN
-   demo_ica_chk_rms_v24.cob:241: Error: ACRT v0.4.0 Rule 2.28: Do not use STOP RUN
+   demo_ica_chk_rms_v24.cob:225: Error: ACRT v0.4.1 Rule 2.28: Do not use STOP RUN
+   demo_ica_chk_rms_v24.cob:241: Error: ACRT v0.4.1 Rule 2.28: Do not use STOP RUN
 
 [E] Rule 5.1: There must not be any unused SECTIONs (every SECTION must be referenced by PERFORM or GO TO)
    Type  : UNUSED_SECTIONS (exclude=A-MAIN,I-DUMMY)
    Hits  : 1
    Samples:
      - Unused SECTION X-ERRORS
-   demo_ica_chk_rms_v24.cob:215: Error: ACRT v0.4.0 Rule 5.1: There must not be any unused SECTIONs (every SECTION must be referenced by PERFORM or GO TO)
+   demo_ica_chk_rms_v24.cob:215: Error: ACRT v0.4.1 Rule 5.1: There must not be any unused SECTIONs (every SECTION must be referenced by PERFORM or GO TO)
 
 Rule matches on LOCAL-ONLY DIFF (Private - Master):
 --------------------------------------------------
@@ -54,5 +54,5 @@ No rule matches.
 Thresholds: Errors>0 Warnings>50 Infos>100
 Current abs diff: Errors=1 Warnings=0 Infos=0
 
-RESULT: ERROR - the demo_ica_chk_rms_v24.cob program does not meet ACRT v0.4.0 standards.
+RESULT: ERROR - the demo_ica_chk_rms_v24.cob program does not meet ACRT v0.4.1 standards.
 Report generated at: 2026-02-14 14:34:19
