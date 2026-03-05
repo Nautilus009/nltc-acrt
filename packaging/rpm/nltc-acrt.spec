@@ -31,6 +31,7 @@ python3 setup.py install --root %{buildroot} --prefix %{_prefix}
 %doc README.md CHANGELOG.md
 %{_bindir}/acrt
 %{python3_sitelib}/acrt.py*
+%{python3_sitelib}/__pycache__/acrt*.pyc
 %{python3_sitelib}/acrt_pkg/
 %{python3_sitelib}/nltc_acrt-*.egg-info/
 
