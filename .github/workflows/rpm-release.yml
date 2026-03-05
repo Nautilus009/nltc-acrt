@@ -76,10 +76,10 @@ jobs:
             printf '%s\n' '%_gpgbin /usr/bin/gpg'
             printf '%s\n' '%__gpg /usr/bin/gpg'
             printf '%%_gpg_passphrase_file %s\n' "$PASS_FILE"
-            printf '%s\n' '%__gpg_sign_cmd %{__gpg} \'
-            printf '%s\n' '  gpg --batch --no-verbose --no-armor --pinentry-mode loopback \'
-            printf '%s\n' '  --passphrase-file %{_gpg_passphrase_file} \'
-            printf '%s\n' '  --digest-algo sha256 --sign --detach-sign \'
+            printf '%s\n' '%__gpg_sign_cmd %{__gpg} \\'
+            printf '%s\n' '  gpg --batch --no-verbose --no-armor --pinentry-mode loopback \\'
+            printf '%s\n' '  --passphrase-file %{_gpg_passphrase_file} \\'
+            printf '%s\n' '  --digest-algo sha256 --sign --detach-sign \\'
             printf '%s\n' '  --output %{__signature_filename} %{__plaintext_filename}'
           } > ~/.rpmmacros
 
