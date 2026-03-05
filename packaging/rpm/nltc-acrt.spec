@@ -24,7 +24,7 @@ compilation listing files and reports newly introduced violations.
 
 %install
 rm -rf %{buildroot}
-python3 setup.py install --skip-build --root %{buildroot} --prefix %{_prefix}
+python3 setup.py install --root %{buildroot} --prefix %{_prefix}
 
 %files
 %license LICENSE
@@ -32,9 +32,11 @@ python3 setup.py install --skip-build --root %{buildroot} --prefix %{_prefix}
 %{_bindir}/acrt
 %{python3_sitelib}/acrt.py*
 %{python3_sitelib}/acrt_pkg/
-%{python3_sitelib}/nltc_acrt-*.dist-info/
 %{python3_sitelib}/nltc_acrt-*.egg-info/
 
 %changelog
+* Thu Mar 05 2026 NLTC Packaging Team <noreply@nltc> - 0.4.2-1
+- Release 0.4.2 with RPM packaging/release pipeline updates
+
 * Wed Mar 04 2026 NLTC Packaging Team <noreply@nltc> - 0.4.1-1
 - Initial RPM packaging
