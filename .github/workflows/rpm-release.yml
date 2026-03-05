@@ -69,19 +69,19 @@ jobs:
           printf '%s' "$RPM_GPG_PASSPHRASE" > "$PASS_FILE"
           chmod 600 "$PASS_FILE"
 
-          cat > ~/.rpmmacros <<MACROS
-%_signature gpg
-%_gpg_name $RPM_GPG_KEY_ID
-%_gpg_path ~/.gnupg
-%_gpgbin /usr/bin/gpg
-%__gpg /usr/bin/gpg
-%_gpg_passphrase_file $PASS_FILE
-%__gpg_sign_cmd %{__gpg} \\
-  gpg --batch --no-verbose --no-armor --pinentry-mode loopback \\
-  --passphrase-file %{_gpg_passphrase_file} \\
-  --digest-algo sha256 --sign --detach-sign \\
-  --output %{__signature_filename} %{__plaintext_filename}
-MACROS
+          {
+            printf '%s\n' '%_signature gpg'
+            printf '%%_gpg_name %s\n' "$RPM_GPG_KEY_ID"
+            printf '%s\n' '%_gpg_path ~/.gnupg'
+            printf '%s\n' '%_gpgbin /usr/bin/gpg'
+            printf '%s\n' '%__gpg /usr/bin/gpg'
+            printf '%%_gpg_passphrase_file %s\n' "$PASS_FILE"
+            printf '%s\n' '%__gpg_sign_cmd %{__gpg} \'
+            printf '%s\n' '  gpg --batch --no-verbose --no-armor --pinentry-mode loopback \'
+            printf '%s\n' '  --passphrase-file %{_gpg_passphrase_file} \'
+            printf '%s\n' '  --digest-algo sha256 --sign --detach-sign \'
+            printf '%s\n' '  --output %{__signature_filename} %{__plaintext_filename}'
+          } > ~/.rpmmacros
 
       - name: Sign RPMs
         run: |
