@@ -26,7 +26,7 @@ def main(argv=None):
         return 0
 
     if not args.element:
-        print("Usage: python3 acrt.py src/<element>.<cob|pco|inc>")
+        print("Usage: acrt src/<element>.<cob|pco|inc>")
         return 2
 
     element_path = args.element

@@ -63,13 +63,61 @@ export ACRT_EXCLUDE="icd_*.pco;ica_*_driver.cob;"
 
 Print version:
 ```bash
-python3 acrt.py -version
+acrt -version
 ```
 
 Run audit for a single COBOL source element:
 ```bash
-python3 acrt.py src/ica_check_if_subs_active.cob
+acrt src/ica_check_if_subs_active.cob
 ```
+
+## RPM Packaging (Linux 7.6)
+
+Build an RPM using the included helper script:
+
+```bash
+./scripts/build-rpm.sh
+```
+
+Prerequisites on the build host:
+- `rpmbuild`
+- `python3`
+- `python3-setuptools`
+
+Note: the script packages from `HEAD` and requires a clean git working tree.
+
+Artifacts are generated under:
+
+```text
+.rpmbuild/RPMS/
+```
+
+Install on target hosts:
+
+```bash
+sudo rpm -Uvh nltc-acrt-<version>-1*.rpm
+```
+
+### CI Release (signed RPM on tag)
+
+A GitHub Actions workflow at `.github/workflows/rpm-release.yml` builds and signs RPMs on tag push, then uploads them as workflow artifacts and GitHub release assets.
+
+Tag format:
+
+```text
+v<version>
+```
+
+Example:
+
+```text
+v0.4.1
+```
+
+Required repository secrets:
+- `RPM_GPG_PRIVATE_KEY` - ASCII-armored private key for RPM signing
+- `RPM_GPG_KEY_ID` - key id/user identity used by `rpmsign`
+- `RPM_GPG_PASSPHRASE` - passphrase for the signing key
 
 ### Exit Codes
 
