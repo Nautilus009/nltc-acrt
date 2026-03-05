@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.2 - 2026-03-05
+- Added RPM packaging support for Linux 7.6 distribution.
+- Added signed RPM release workflow for GitHub tag-based releases.
+
 ## 0.4.1 - 2026-02-14
 - Fixed MASTER listing line mapping to align with `tests/master/src` when available.
 - Fixed Rule 3.23 line attribution on MASTER output to anchor to containing section line.
