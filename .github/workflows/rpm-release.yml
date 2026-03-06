@@ -96,6 +96,7 @@ jobs:
             printf '%s\n' '%_gpg_path ~/.gnupg'
             printf '%s\n' '%_gpgbin /usr/bin/gpg'
             printf '%s\n' '%__gpg /usr/bin/gpg'
+            printf '%s\n' '%__gpg_check_password_cmd /bin/true'
             printf '%%_gpg_passphrase_file %s\n' "$PASS_FILE"
             printf '%s\n' '%__gpg_sign_cmd %{__gpg} --batch --no-tty --yes --pinentry-mode loopback \\'
             printf '%s\n' '  --passphrase-file %{_gpg_passphrase_file} --no-armor \\'
@@ -116,6 +117,7 @@ jobs:
               --define "_gpg_name $RPM_GPG_KEY_ID" \
               --define "_gpg_path $GNUPGHOME" \
               --define "__gpg /usr/bin/gpg" \
+              --define "__gpg_check_password_cmd /bin/true" \
               --define "__gpg_sign_cmd %{__gpg} --batch --no-tty --yes --pinentry-mode loopback --passphrase-file %{_gpg_passphrase_file} --no-armor --local-user \"%{_gpg_name}\" --detach-sign --digest-algo sha256 --output %{__signature_filename} %{__plaintext_filename}" \
               "$rpm_file"
           done
