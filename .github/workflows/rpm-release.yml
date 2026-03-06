@@ -53,7 +53,23 @@ jobs:
             echo "Missing RPM_GPG_PRIVATE_KEY secret"
             exit 1
           fi
-          printf '%s' "$RPM_GPG_PRIVATE_KEY" | gpg --batch --import
+
+          KEY_FILE=/tmp/rpm-signing-private.key
+
+          # Accept either:
+          # 1) ASCII-armored key block stored directly in the secret, or
+          # 2) base64-encoded key material.
+          if printf '%s' "$RPM_GPG_PRIVATE_KEY" | grep -q "BEGIN PGP PRIVATE KEY BLOCK"; then
+            printf '%s\n' "$RPM_GPG_PRIVATE_KEY" > "$KEY_FILE"
+          elif printf '%s' "$RPM_GPG_PRIVATE_KEY" | base64 --decode > "$KEY_FILE" 2>/dev/null; then
+            true
+          else
+            # Handle secrets where newlines were escaped as literal "\n".
+            printf '%b' "$RPM_GPG_PRIVATE_KEY" > "$KEY_FILE"
+          fi
+
+          gpg --batch --pinentry-mode loopback --import "$KEY_FILE"
+          gpg --batch --list-secret-keys --keyid-format LONG
 
       - name: Configure rpmsign
         env:
