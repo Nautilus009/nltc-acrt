@@ -102,9 +102,8 @@ jobs:
             printf '%%__gpg %s\n' "$GPG_BIN"
             printf '%s\n' '%__gpg_check_password_cmd /bin/true'
             printf '%%_gpg_passphrase_file %s\n' "$PASS_FILE"
-            printf '%s\n' '%__gpg_sign_cmd %{__gpg} --batch --no-tty --yes --pinentry-mode loopback \\'
-            printf '%s\n' '  --passphrase-file %{_gpg_passphrase_file} -u "%{_gpg_name}" \\'
-            printf '%s\n' '  -sbo %{__signature_filename} %{__plaintext_filename}'
+            printf '%s\n' '%_gpg_digest_algo sha256'
+            printf '%s\n' '%_gpg_sign_cmd_extra_args --batch --no-tty --yes --pinentry-mode loopback --passphrase-file %{_gpg_passphrase_file}'
           } > ~/.rpmmacros
 
       - name: Sign RPMs
@@ -123,7 +122,8 @@ jobs:
               --define "__gpg $RPM_GPG_BIN" \
               --define "_gpg_passphrase_file $RPM_GPG_PASS_FILE" \
               --define "__gpg_check_password_cmd /bin/true" \
-              --define "__gpg_sign_cmd %{__gpg} --batch --no-tty --yes --pinentry-mode loopback --passphrase-file %{_gpg_passphrase_file} -u \"%{_gpg_name}\" -sbo %{__signature_filename} %{__plaintext_filename}" \
+              --define "_gpg_digest_algo sha256" \
+              --define "_gpg_sign_cmd_extra_args --batch --no-tty --yes --pinentry-mode loopback --passphrase-file %{_gpg_passphrase_file}" \
               "$rpm_file"
           done
 
