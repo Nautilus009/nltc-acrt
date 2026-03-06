@@ -28,6 +28,7 @@ compilation listing files and reports newly introduced violations.
 %install
 rm -rf %{buildroot}
 python3 setup.py install --root %{buildroot} --prefix %{_prefix}
+python3 -m compileall -q %{buildroot}%{python3_sitelib}/acrt.py || :
 
 %files
 %license LICENSE
