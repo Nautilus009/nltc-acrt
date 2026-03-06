@@ -104,8 +104,21 @@ jobs:
           } > ~/.rpmmacros
 
       - name: Sign RPMs
+        env:
+          RPM_GPG_KEY_ID: ${{ secrets.RPM_GPG_KEY_ID }}
         run: |
-          find .rpmbuild/RPMS -type f -name '*.rpm' -print0 | xargs -0 -r rpmsign --addsign
+          export GNUPGHOME="$HOME/.gnupg"
+          export GPG_TTY=/dev/null
+
+          find .rpmbuild/RPMS -type f -name '*.rpm' -print0 | while IFS= read -r -d '' rpm_file; do
+            rpmsign --addsign \
+              --define "_signature gpg" \
+              --define "_gpg_name $RPM_GPG_KEY_ID" \
+              --define "_gpg_path $GNUPGHOME" \
+              --define "__gpg /usr/bin/gpg" \
+              --define "__gpg_sign_cmd %{__gpg} --batch --no-tty --yes --pinentry-mode loopback --passphrase-file %{_gpg_passphrase_file} --no-armor --local-user \"%{_gpg_name}\" --detach-sign --digest-algo sha256 --output %{__signature_filename} %{__plaintext_filename}" \
+              "$rpm_file"
+          done
 
       - name: Verify RPM signatures
         run: |
