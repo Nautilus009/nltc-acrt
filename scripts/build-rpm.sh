@@ -7,6 +7,7 @@ VERSION="$(awk -F'"' '/__version__/ {print $2; exit}' "$ROOT_DIR/src/acrt_pkg/__
 PKG_NAME="nltc-acrt"
 TARBALL_NAME="$PKG_NAME-$VERSION.tar.gz"
 RPM_TOPDIR="${RPM_TOPDIR:-$ROOT_DIR/.rpmbuild}"
+RPMBUILD_OPTS=()
 
 mkdir -p "$RPM_TOPDIR"/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
 
@@ -34,8 +35,13 @@ fi
 # Keep spec version in sync with Python package version.
 sed -E "s/^Version:.*/Version:        $VERSION/" "$SPEC_FILE" > "$RPM_TOPDIR/SPECS/$PKG_NAME.spec"
 
+if [[ "${RPMBUILD_NODEPS:-0}" == "1" ]]; then
+  RPMBUILD_OPTS+=(--nodeps)
+fi
+
 rpmbuild \
   --define "_topdir $RPM_TOPDIR" \
+  "${RPMBUILD_OPTS[@]}" \
   -ba "$RPM_TOPDIR/SPECS/$PKG_NAME.spec"
 
 echo "RPMs built under: $RPM_TOPDIR/RPMS"
