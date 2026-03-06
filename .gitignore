@@ -13,6 +13,7 @@ __pycache__/
 # Logs/temp
 *.log
 tmp/
+.rpmbuild/
 
 # Test fixtures
 tests/local/src/.freebidi/

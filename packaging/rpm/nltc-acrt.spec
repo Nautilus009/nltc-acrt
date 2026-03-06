@@ -12,6 +12,9 @@ BuildRequires:  python3
 BuildRequires:  python3-setuptools
 Requires:       python3 >= 3.7
 
+%{!?python3_version:%global python3_version %(python3 -c "import sys; print(f'{sys.version_info[0]}.{sys.version_info[1]}')")}
+%{!?python3_sitelib:%global python3_sitelib %{_prefix}/lib/python%{python3_version}/site-packages}
+
 %description
 nltc-acrt is a COBOL audit CLI that compares Master and Local/Private
 compilation listing files and reports newly introduced violations.
