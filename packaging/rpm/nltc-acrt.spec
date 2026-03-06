@@ -28,14 +28,15 @@ compilation listing files and reports newly introduced violations.
 %install
 rm -rf %{buildroot}
 python3 setup.py install --root %{buildroot} --prefix %{_prefix}
-python3 -m compileall -q %{buildroot}%{python3_sitelib}/acrt.py || :
 
 %files
 %license LICENSE
 %doc README.md CHANGELOG.md
 %{_bindir}/acrt
 %{python3_sitelib}/acrt.py*
+%if 0%{?rhel}
 %{python3_sitelib}/__pycache__/acrt*.pyc
+%endif
 %{python3_sitelib}/acrt_pkg/
 %{python3_sitelib}/nltc_acrt-*.egg-info/
 
