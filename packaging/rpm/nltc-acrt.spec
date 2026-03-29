@@ -1,5 +1,5 @@
 Name:           nltc-acrt
-Version:        0.4.2
+Version:        0.4.3
 Release:        1%{?dist}
 Summary:        ACRT COBOL auditing CLI
 
@@ -41,8 +41,8 @@ python3 setup.py install --root %{buildroot} --prefix %{_prefix}
 %{python3_sitelib}/nltc_acrt-*.egg-info/
 
 %changelog
-* Thu Mar 05 2026 NLTC Packaging Team <noreply@nltc> - 0.4.2-1
-- Release 0.4.2 with RPM packaging/release pipeline updates
+* Sun Mar 29 2026 NLTC Packaging Team <noreply@nltc> - 0.4.3-1
+- Release 0.4.3 with support for new modules that do not yet have a Master listing
 
 * Wed Mar 04 2026 NLTC Packaging Team <noreply@nltc> - 0.4.1-1
 - Initial RPM packaging

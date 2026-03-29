@@ -1,0 +1,24 @@
+Getting current ACRT v0.4.3 status for demo_new_module_no_master.cob on 2026-03-29 09:43:32 (user: oren):
+On Master build directory : #Errors 0 #Warnings 0 #Infos 0
+On Private build directory : #Errors 0 #Warnings 0 #Infos 0
+The difference : Errors 0 Warnings 0 Infos 0
+
+ACRT RULES REPORT
+==================================================
+Rule matches on LOCAL LISTING (Private build):
+--------------------------------------------------
+No rule matches.
+
+Rule matches on MASTER LISTING (ALM build):
+--------------------------------------------------
+No rule matches.
+
+Rule matches on LOCAL-ONLY DIFF (Private - Master):
+--------------------------------------------------
+No rule matches.
+
+Thresholds: Errors>0 Warnings>50 Infos>100
+Current abs diff: Errors=0 Warnings=0 Infos=0
+
+RESULT: OK - the demo_new_module_no_master.cob program meets ACRT v0.4.3 standards.
+Report generated at: 2026-03-29 09:43:32

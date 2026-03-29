@@ -21,6 +21,8 @@ echo "+ python3 acrt.py src/demo_ica_chk_cob_regression.cob" >> "$LOG_FILE"
 python3 "$ROOT_DIR/src/acrt.py" -debug-tree "$BUILD_LOCAL_PATH_BB/src/demo_ica_chk_cob_regression.cob" >> "$LOG_FILE"
 echo "+ python3 acrt.py src/demo_ica_chk_rms_v24.cob" >> "$LOG_FILE"
 python3 "$ROOT_DIR/src/acrt.py" -debug-tree "$BUILD_LOCAL_PATH_BB/src/demo_ica_chk_rms_v24.cob" >> "$LOG_FILE"
+echo "+ python3 acrt.py src/demo_new_module_no_master.cob" >> "$LOG_FILE"
+python3 "$ROOT_DIR/src/acrt.py" -debug-tree "$BUILD_LOCAL_PATH_BB/src/demo_new_module_no_master.cob" >> "$LOG_FILE"
 set -e
 
 cat "$LOG_FILE"
@@ -47,4 +49,5 @@ compare_acrt() {
 compare_acrt "$BUILD_LOCAL_PATH_BB/target/obj/ica_check_if_subs_active.acrt" "$LOG_DIR/ica_check_if_subs_active.acrt"
 compare_acrt "$BUILD_LOCAL_PATH_BB/target/obj/demo_ica_chk_cob_regression.acrt" "$LOG_DIR/demo_ica_chk_cob_regression.acrt"
 compare_acrt "$BUILD_LOCAL_PATH_BB/target/obj/demo_ica_chk_rms_v24.acrt" "$LOG_DIR/demo_ica_chk_rms_v24.acrt"
+compare_acrt "$BUILD_LOCAL_PATH_BB/target/obj/demo_new_module_no_master.acrt" "$LOG_DIR/demo_new_module_no_master.acrt"
 rm -f "$TMP_A" "$TMP_B"

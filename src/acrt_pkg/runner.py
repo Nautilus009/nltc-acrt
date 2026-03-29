@@ -46,6 +46,10 @@ def _actionable_key(finding):
     return (finding.rule_number, finding.path, finding.snippet)
 
 
+def _empty_listing(path):
+    return clean_listing([], path)
+
+
 def run_acrt(element_path, env, debug=False, debug_tree=False, debug_match_rule=None):
     element_name = os.path.basename(element_path)
     file_stem, _ = os.path.splitext(element_name)
@@ -57,10 +61,11 @@ def run_acrt(element_path, env, debug=False, debug_tree=False, debug_match_rule=
     master_path = os.path.join(env["BUILD_ALM_PATH_BB"], "target", "obj", f"{file_stem}.lis")
     local_path = os.path.join(env["BUILD_LOCAL_PATH_BB"], "target", "obj", f"{file_stem}.lis")
 
-    if not os.path.exists(master_path) or not os.path.exists(local_path):
-        raise FileNotFoundError("Missing master or local listing file")
+    if not os.path.exists(local_path):
+        raise FileNotFoundError("Missing local listing file")
 
-    master_raw = read_listing(master_path)
+    master_exists = os.path.exists(master_path)
+    master_raw = read_listing(master_path) if master_exists else []
     local_raw = read_listing(local_path)
     local_source_raw = read_listing(element_path)
     local_source_cleaned = clean_source(local_source_raw)
@@ -72,7 +77,11 @@ def run_acrt(element_path, env, debug=False, debug_tree=False, debug_match_rule=
     else:
         master_source_cleaned = local_source_cleaned
 
-    master_clean = clean_listing(master_raw, master_path, source_cleaned=master_source_cleaned)
+    master_clean = (
+        clean_listing(master_raw, master_path, source_cleaned=master_source_cleaned)
+        if master_exists
+        else _empty_listing(master_path)
+    )
     local_clean = clean_listing(local_raw, local_path, source_cleaned=local_source_cleaned)
     diff_clean = local_only_diff(master_clean, local_clean)
 
@@ -130,7 +139,7 @@ def run_acrt(element_path, env, debug=False, debug_tree=False, debug_match_rule=
     for rule in rules:
         if not rule.run:
             continue
-        if rule.on_master:
+        if rule.on_master and master_exists:
             res = engine.run(rule, master_ctx, "MASTER", element_name, file_stem)
             master_findings.extend(res)
             per_rule["MASTER"][rule.number] = res
